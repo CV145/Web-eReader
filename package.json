@@ -9,10 +9,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@vueuse/core": "^13.2.0",
     "epubjs": "^0.3.93",
+    "jszip": "^3.10.1",
     "pinia": "^3.0.2",
     "pinia-plugin-persistedstate": "^4.3.0",
     "vue": "^3.3.4",
+    "vue-reader": "^1.2.17",
     "vue-router": "^4.2.4"
   },
   "devDependencies": {

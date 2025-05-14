@@ -3,36 +3,15 @@ import { defineStore } from 'pinia'
 export const useLibraryStore = defineStore('library', {
   state: () => ({
     books: [
-      // Sample books for development
+      // Only include actual downloaded books
       {
-        id: '1',
-        title: 'Pride and Prejudice',
-        author: 'Jane Austen',
+        id: 'alice',
+        title: "Alice's Adventures in Wonderland",
+        author: 'Lewis Carroll',
         cover: null,
         format: 'epub',
+        filePath: '/books/alice.epub', // Relative path from public directory
         progress: 0, // Reading progress percentage
-        lastRead: null,
-        favorite: false,
-        addedDate: new Date().toISOString(),
-      },
-      {
-        id: '2',
-        title: 'The Great Gatsby',
-        author: 'F. Scott Fitzgerald',
-        cover: null,
-        format: 'epub',
-        progress: 23, // Reading progress percentage
-        lastRead: new Date().toISOString(),
-        favorite: true,
-        addedDate: new Date().toISOString(),
-      },
-      {
-        id: '3',
-        title: '1984',
-        author: 'George Orwell',
-        cover: null,
-        format: 'pdf',
-        progress: 0,
         lastRead: null,
         favorite: false,
         addedDate: new Date().toISOString(),
@@ -40,8 +19,8 @@ export const useLibraryStore = defineStore('library', {
     ],
     currentBookId: null, // ID of the currently open book
     collections: [
-      { id: 'favorites', name: 'Favorites', bookIds: ['2'] },
-      { id: 'to-read', name: 'To Read', bookIds: ['1', '3'] },
+      { id: 'favorites', name: 'Favorites', bookIds: [] },
+      { id: 'to-read', name: 'To Read', bookIds: ['alice'] },
     ],
   }),
   
