@@ -371,9 +371,11 @@ export class EpubParser {
 
   /**
    * Get the current chapter content
+   * @param {Object} options - Options for content processing
+   * @param {boolean} options.numberParagraphs - Whether to number paragraphs
    * @returns {Promise<Object>} - Chapter content and metadata
    */
-  async getCurrentChapter() {
+  async getCurrentChapter(options = {}) {
     if (this.currentSpineIndex < 0 || this.currentSpineIndex >= this.spine.length) {
       throw new Error('Invalid spine index');
     }
@@ -381,8 +383,8 @@ export class EpubParser {
     const spineItem = this.spine[this.currentSpineIndex];
     const content = await this.getFileContent(spineItem.href);
     
-    // Process HTML content to fix relative URLs
-    const processedContent = this.processHtml(content, spineItem.href);
+    // Process HTML content to fix relative URLs and apply options
+    const processedContent = this.processHtml(content, spineItem.href, options);
     
     return {
       index: this.currentSpineIndex,
@@ -393,12 +395,14 @@ export class EpubParser {
   }
 
   /**
-   * Process HTML content to fix relative URLs
+   * Process HTML content to fix relative URLs and styling issues
    * @param {string} html - HTML content
    * @param {string} baseHref - Base href for relative URLs
+   * @param {Object} options - Processing options
+   * @param {boolean} options.numberParagraphs - Whether to number paragraphs
    * @returns {string} - Processed HTML
    */
-  processHtml(html, baseHref) {
+  processHtml(html, baseHref, options = {}) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
     const baseDir = baseHref.split('/').slice(0, -1).join('/');
@@ -429,20 +433,84 @@ export class EpubParser {
       }
     });
     
+    // Remove inline styles that might cause text to appear as links
+    const allElements = doc.querySelectorAll('*');
+    allElements.forEach(el => {
+      // Handle inline styles that might color text or add underlines
+      if (el.style) {
+        if (el.tagName.toLowerCase() !== 'a') {
+          // Remove color and text-decoration properties on non-link elements
+          el.style.color = '';
+          el.style.textDecoration = '';
+        }
+      }
+      
+      // Remove any classes that might be causing link-like appearance
+      if (el.classList) {
+        // This is a bit aggressive, but we can't easily know which classes add link styles
+        // Better to clear and use our own styling
+        const keepClasses = ['chapter', 'section', 'title', 'heading', 'paragraph'];
+        const classesToKeep = Array.from(el.classList).filter(cls => 
+          keepClasses.some(keep => cls.includes(keep))
+        );
+        
+        el.className = classesToKeep.join(' ');
+      }
+    });
+    
+    // Add paragraph numbering if requested
+    if (options.numberParagraphs) {
+      const paragraphs = doc.querySelectorAll('p');
+      paragraphs.forEach((p, index) => {
+        // Skip very short paragraphs (likely not actual content paragraphs)
+        if (p.textContent.trim().length < 10) return;
+        
+        // Create the paragraph number element
+        const numberSpan = doc.createElement('span');
+        numberSpan.className = 'paragraph-number';
+        numberSpan.textContent = `¶${index + 1}`;
+        numberSpan.style.display = 'inline-block';
+        numberSpan.style.marginRight = '0.5em';
+        numberSpan.style.color = 'gray';
+        numberSpan.style.fontSize = '0.8em';
+        numberSpan.style.userSelect = 'none';
+        
+        // Insert at the beginning of the paragraph
+        if (p.firstChild) {
+          p.insertBefore(numberSpan, p.firstChild);
+        } else {
+          p.appendChild(numberSpan);
+        }
+      });
+    }
+    
+    // Add a style element to normalize text appearance
+    const styleEl = doc.createElement('style');
+    styleEl.textContent = `
+      * { color: inherit !important; text-decoration: none !important; }
+      p { margin-bottom: 1em; }
+      h1, h2, h3, h4, h5, h6 { margin-top: 1em; margin-bottom: 0.5em; }
+      a:hover { text-decoration: none !important; }
+      .paragraph-number { opacity: 0.7; }
+    `;
+    doc.head.appendChild(styleEl);
+    
     return doc.documentElement.outerHTML;
   }
 
   /**
    * Navigate to a specific chapter by index
    * @param {number} index - Chapter index in the spine
+   * @param {Object} options - Options for content processing
+   * @param {boolean} options.numberParagraphs - Whether to number paragraphs
    * @returns {Promise<Object>} - Chapter content and metadata
    */
-  async goToChapter(index) {
+  async goToChapter(index, options = {}) {
     if (index < 0) index = 0;
     if (index >= this.spine.length) index = this.spine.length - 1;
     
     this.currentSpineIndex = index;
-    return await this.getCurrentChapter();
+    return await this.getCurrentChapter(options);
   }
 
   /**

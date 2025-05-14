@@ -57,9 +57,18 @@
 
       <div v-else class="reader-view">
         <!-- Custom EPUB Reader Component -->
+        <!-- Loading state when book URL is not yet loaded -->
+        <div v-if="!bookUrl" class="flex flex-col items-center justify-center h-64 mt-8">
+          <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+          <p class="text-gray-600">Loading book data...</p>
+        </div>
+        
+        <!-- Only render the reader component when bookUrl is available -->
         <CustomEpubReader 
+          v-if="bookUrl"
           :bookId="currentBook.id"
-          :bookTitle="currentBook.title" 
+          :bookTitle="currentBook.title"
+          :bookUrl="bookUrl"
           :theme="settingsStore.theme" 
           :fontSize="settingsStore.fontSize"
           @progress-update="handleProgressUpdate"
@@ -108,16 +117,24 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from "vue";
-import { useSettingsStore } from "../stores/settingsStore";
-import { useLibraryStore } from "../stores/libraryStore";
-import CustomEpubReader from "../components/CustomEpubReader.vue";
+import { ref, computed, watch, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
+import { useLibraryStore } from '../stores/libraryStore';
+import { useSettingsStore } from '../stores/settingsStore';
+import CustomEpubReader from '../components/CustomEpubReader.vue';
+import { retrieveWithChunking } from '../utils/storageUtils';
+import { isIndexedDBAvailable, retrieveBookData } from '../utils/indexedDbStorage';
 
 const settingsStore = useSettingsStore();
 const libraryStore = useLibraryStore();
 
 // Get the currently open book
-const currentBook = computed(() => libraryStore.getCurrentBook);
+const currentBook = computed(() => {
+  return libraryStore.getCurrentBook;
+});
+
+// Reactive variable to store the resolved book URL
+const bookUrl = ref('');
 const currentBookTitle = computed(
   () => currentBook.value?.title || "No book open"
 );
@@ -135,10 +152,47 @@ const currentEpubUrl = computed(() => {
   return "/src/assets/alice.epub";
 });
 
+// Function to load the book URL asynchronously
+const loadBookUrl = async (book) => {
+  if (!book) {
+    console.log('No book provided to loadBookUrl');
+    bookUrl.value = '';
+    return;
+  }
+  
+  console.log(`Starting to load URL for book: ${book.title} (ID: ${book.id})`);
+  
+  try {
+    const url = await getBookUrl(book);
+    console.log(`Book URL loaded for ${book.title}: ${url ? `${url.substring(0, 30)}...` : 'undefined'}`);
+    
+    if (url) {
+      bookUrl.value = url;
+      console.log('Book URL loaded successfully');
+    } else {
+      console.warn(`No URL returned for book ${book.title}`);
+      bookUrl.value = '';
+    }
+  } catch (error) {
+    console.error(`Error loading book URL for ${book.title}:`, error);
+    bookUrl.value = '';
+  }
+};
+
+// Watch for changes to the current book
+watch(currentBook, (newBook) => {
+  if (newBook) {
+    loadBookUrl(newBook);
+  } else {
+    bookUrl.value = '';
+  }
+});
+
 onMounted(() => {
   // Set initial reading progress if a book is open
   if (currentBook.value) {
     readingProgress.value = currentBook.value.progress;
+    loadBookUrl(currentBook.value);
   }
 });
 
@@ -203,6 +257,75 @@ const updateFontSize = (newSize) => {
 // Handle theme toggle event from VueReaderComponent
 const handleThemeToggle = () => {
   settingsStore.toggleTheme();
+};
+
+// Get the correct book URL based on book source
+const getBookUrl = async (book) => {
+  if (!book || !book.id) {
+    console.error('Invalid book object provided to getBookUrl');
+    return '';
+  }
+
+  console.log(`Trying to load book ${book.id} data from storage...`);
+  
+  // First try IndexedDB for large books
+  if (isIndexedDBAvailable()) {
+    try {
+      const storageKey = `book_data_${book.id}`;
+      const data = await retrieveBookData(storageKey);
+      if (data) {
+        console.log(`ReaderView: Found data for ${book.id} in IndexedDB`);
+        // Validate that it's a usable URL format
+        if (typeof data === 'string' && (data.startsWith('data:') || data.startsWith('blob:') || data.startsWith('http'))) {
+          console.log(`Book URL loaded for ${book.id} in IndexedDB`);
+          return data;
+        } else {
+          console.warn(`IndexedDB data for ${book.id} is not in expected URL format:`, typeof data);
+        }
+      }
+    } catch (err) {
+      console.warn(`ReaderView: Error getting data from IndexedDB for ${book.id}:`, err);
+      // Continue to localStorage if IndexedDB fails
+    }
+  }
+  
+  // Try localStorage (with chunking for large books)
+  const storageKey = `book_data_${book.id}`;
+  const storedData = retrieveWithChunking(storageKey);
+  
+  if (storedData) {
+    console.log(`ReaderView: Found data for book ${book.id} in localStorage`);
+    
+    // If it's already a data URL, return it directly
+    if (typeof storedData === 'string' && storedData.startsWith('data:')) {
+      console.log(`Book URL loaded for ${book.id} from localStorage as data URL`);
+      return storedData;
+    }
+    
+    // Otherwise, try to use it directly if it's a string
+    if (typeof storedData === 'string') {
+      console.log(`Book URL loaded for ${book.id} from localStorage as string`);
+      return storedData;
+    } else {
+      console.error(`ReaderView: Stored data for book ${book.id} is not a string:`, typeof storedData);
+    }
+  }
+  
+  // Try using existing URL if available
+  if (book.url) {
+    // If it's a blob URL, it has likely expired after page refresh
+    if (book.url.startsWith('blob:')) {
+      console.warn(`ReaderView: Blob URL for ${book.id} likely expired`);
+    } else {
+      // If it's not a blob URL (e.g., it's a data URL), we can still use it
+      console.log(`ReaderView: Using existing URL for ${book.id}`);
+      return book.url;
+    }
+  }
+  
+  // If we get here, we couldn't find the book data
+  console.error(`Book data for ${book.id} not found in any storage.`);
+  return '';
 };
 
 // Book info actions
