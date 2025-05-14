@@ -55,7 +55,47 @@
         </router-link>
       </div>
 
-      <div v-else class="reader-view">
+      <div v-else class="reader-view relative">
+        <!-- Sticky navbar that follows scrolling -->
+        <div class="sticky-navbar fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-800 shadow-md transition-all duration-300" 
+             :class="{ 'opacity-100': isNavbarVisible, 'opacity-0 pointer-events-none': !isNavbarVisible }">
+          <div class="max-w-7xl mx-auto px-4 py-2 flex justify-between items-center">
+            <!-- Left section: back button -->
+            <div>
+              <router-link to="/library" class="flex items-center text-gray-700 dark:text-gray-200 hover:text-blue-500 dark:hover:text-blue-400 transition-colors">
+                <span class="mr-1">←</span> Back to Library
+              </router-link>
+            </div>
+            
+            <!-- Center section: page navigation -->
+            <div class="flex items-center space-x-4">
+              <button @click="prevPage" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                <span class="text-xl">←</span>
+              </button>
+              <span class="text-sm text-gray-600 dark:text-gray-300">{{ readingProgress.value ? Math.round(readingProgress.value * 100) + '%' : '0%' }}</span>
+              <button @click="nextPage" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                <span class="text-xl">→</span>
+              </button>
+            </div>
+            
+            <!-- Right section: settings -->
+            <div class="flex items-center space-x-3">
+              <button @click="decreaseFontSize" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Decrease font size">
+                <span class="text-lg">A-</span>
+              </button>
+              <button @click="increaseFontSize" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Increase font size">
+                <span class="text-lg">A+</span>
+              </button>
+              <button @click="toggleParagraphNumbering" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Toggle paragraph numbers">
+                <span class="text-lg">#</span>
+              </button>
+              <button @click="toggleTheme" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Toggle dark mode">
+                <span class="text-lg">{{ isDarkMode ? '☀️' : '🌙' }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        
         <!-- Custom EPUB Reader Component -->
         <!-- Loading state when book URL is not yet loaded -->
         <div v-if="!bookUrl" class="flex flex-col items-center justify-center h-64 mt-8">
@@ -66,6 +106,7 @@
         <!-- Only render the reader component when bookUrl is available -->
         <CustomEpubReader 
           v-if="bookUrl"
+          ref="epubReader"
           :bookId="currentBook.id"
           :bookTitle="currentBook.title"
           :bookUrl="bookUrl"
@@ -117,7 +158,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import { useLibraryStore } from '../stores/libraryStore';
 import { useSettingsStore } from '../stores/settingsStore';
@@ -138,6 +179,11 @@ const bookUrl = ref('');
 const currentBookTitle = computed(
   () => currentBook.value?.title || "No book open"
 );
+
+// Reactive variables for UI state
+const isNavbarVisible = ref(true);
+const lastScrollTop = ref(0);
+const epubReader = ref(null); // Reference to the epub reader component
 
 // Book info modal
 const showBookInfo = ref(false);
@@ -188,12 +234,84 @@ watch(currentBook, (newBook) => {
   }
 });
 
+// Handle page navigation
+const nextPage = () => {
+  if (epubReader.value) {
+    console.log('Navigating to next page');
+    epubReader.value.nextChapter();
+  } else {
+    console.warn('EpubReader component not found');
+  }
+};
+
+const prevPage = () => {
+  if (epubReader.value) {
+    console.log('Navigating to previous page');
+    epubReader.value.prevChapter();
+  } else {
+    console.warn('EpubReader component not found');
+  }
+};
+
+const toggleParagraphNumbering = () => {
+  if (epubReader.value) {
+    console.log('Toggling paragraph numbering');
+    epubReader.value.toggleParagraphNumbering();
+  } else {
+    console.warn('EpubReader component not found');
+  }
+};
+
+// Handle keyboard navigation
+const handleKeyDown = (e) => {
+  // Only handle keyboard events when a book is open and the reader component is loaded
+  if (!currentBook.value || !bookUrl || !epubReader.value) return;
+  
+  console.log('Key pressed:', e.key);
+  
+  if (e.key === 'ArrowRight') {
+    console.log('Right arrow key detected');
+    e.preventDefault(); // Prevent default browser behavior
+    nextPage();
+  } else if (e.key === 'ArrowLeft') {
+    console.log('Left arrow key detected');
+    e.preventDefault(); // Prevent default browser behavior
+    prevPage();
+  }
+};
+
+// Handle scroll event to show/hide navbar
+const handleScroll = () => {
+  const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+  
+  // Show navbar when scrolling up, hide when scrolling down
+  if (scrollTop > lastScrollTop.value && scrollTop > 50) {
+    // Scrolling down & past threshold - hide navbar
+    isNavbarVisible.value = false;
+  } else {
+    // Scrolling up or at top - show navbar
+    isNavbarVisible.value = true;
+  }
+  
+  lastScrollTop.value = scrollTop;
+};
+
 onMounted(() => {
   // Set initial reading progress if a book is open
   if (currentBook.value) {
     readingProgress.value = currentBook.value.progress;
     loadBookUrl(currentBook.value);
   }
+  
+  // Add event listeners for keyboard navigation and scroll
+  window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('scroll', handleScroll);
+});
+
+onBeforeUnmount(() => {
+  // Clean up event listeners
+  window.removeEventListener('keydown', handleKeyDown);
+  window.removeEventListener('scroll', handleScroll);
 });
 
 // Settings computed properties

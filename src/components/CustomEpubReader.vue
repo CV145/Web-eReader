@@ -600,6 +600,16 @@ const toggleParagraphNumbering = async () => {
   await loadChapter(currentChapterIndex.value);
 };
 
+// Expose methods to parent component
+defineExpose({
+  nextChapter,
+  prevChapter,
+  toggleParagraphNumbering,
+  increaseFontSize,
+  decreaseFontSize,
+  toggleTheme
+});
+
 // Lifecycle hooks
 onMounted(async () => {
   console.log("CustomEpubReader: Component mounted");
