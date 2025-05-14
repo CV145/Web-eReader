@@ -1,0 +1,25 @@
+{
+  "name": "web-ereader",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "epubjs": "^0.3.93",
+    "pinia": "^3.0.2",
+    "pinia-plugin-persistedstate": "^4.3.0",
+    "vue": "^3.3.4",
+    "vue-router": "^4.2.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^4.3.1",
+    "autoprefixer": "^10.4.15",
+    "postcss": "^8.4.28",
+    "tailwindcss": "^3.3.3",
+    "vite": "^4.4.9"
+  }
+}
