@@ -72,7 +72,10 @@
               <button @click="prevPage" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
                 <span class="text-xl">←</span>
               </button>
-              <span class="text-sm text-gray-600 dark:text-gray-300">{{ readingProgress.value ? Math.round(readingProgress.value * 100) + '%' : '0%' }}</span>
+              <div class="flex flex-col items-center min-w-[150px]">
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-200 truncate max-w-[200px]">{{ currentChapterTitle || 'Chapter' }}</span>
+                <span class="text-xs text-gray-600 dark:text-gray-400">{{ progressPercentage }}</span>
+              </div>
               <button @click="nextPage" class="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
                 <span class="text-xl">→</span>
               </button>
@@ -174,6 +177,15 @@ const currentBook = computed(() => {
   return libraryStore.getCurrentBook;
 });
 
+// Computed property for progress percentage
+const progressPercentage = computed(() => {
+  if (currentBook.value && typeof currentBook.value.progress === 'number') {
+    console.log('Current progress from book:', currentBook.value.progress);
+    return Math.round(currentBook.value.progress * 100) + '%';
+  }
+  return '0%';
+});
+
 // Reactive variable to store the resolved book URL
 const bookUrl = ref('');
 const currentBookTitle = computed(
@@ -184,6 +196,7 @@ const currentBookTitle = computed(
 const isNavbarVisible = ref(true);
 const lastScrollTop = ref(0);
 const epubReader = ref(null); // Reference to the epub reader component
+const currentChapterTitle = ref(''); // Current chapter title
 
 // Book info modal
 const showBookInfo = ref(false);
@@ -349,12 +362,29 @@ const toggleTheme = () => {
 
 // EPUB reader event handlers
 const handleProgressUpdate = (data) => {
-  if (currentBook.value) {
-    // Update local reading progress
-    readingProgress.value = data.progress;
-    // Update progress in the store
-    libraryStore.updateReadingProgress(currentBook.value.id, data.progress);
+  if (!currentBook.value) return;
+  
+  console.log('Progress update received:', data);
+  
+  // Update local reading progress
+  readingProgress.value = data.progress;
+  console.log('Setting readingProgress.value to:', data.progress);
+  
+  // Update chapter title if available
+  if (data.chapterTitle) {
+    currentChapterTitle.value = data.chapterTitle;
+    console.log('Current chapter title updated:', data.chapterTitle);
   }
+  
+  // Get the book ID
+  const bookId = currentBook.value.id;
+  console.log(`Updating progress for book ${bookId} to ${data.progress}`);
+  
+  // Update progress in the store
+  libraryStore.updateReadingProgress(bookId, data.progress);
+  
+  // Log current progress from store after update
+  console.log('After update - Book progress from store:', libraryStore.getBookById(bookId)?.progress);
 };
 
 const handleBookLoaded = (metadata) => {

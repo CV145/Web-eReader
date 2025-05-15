@@ -551,10 +551,13 @@ const updateProgress = () => {
   if (!epubParser.value) return;
 
   // Simple progress based on chapter position
-  const progress = Math.round(
-    (currentChapterIndex.value / (totalChapters.value - 1)) * 100
-  );
+  // Calculate progress as a decimal (0-1) instead of percentage
+  const progress = currentChapterIndex.value / (totalChapters.value - 1);
+  
+  console.log(`Emitting progress update: ${progress} (${Math.round(progress * 100)}%)`);
+  console.log(`Current chapter: ${currentChapterIndex.value + 1}/${totalChapters.value}, Title: ${pageInfo.value}`);
 
+  // Emit with detailed data
   emit("progress-update", {
     progress,
     chapterIndex: currentChapterIndex.value,
