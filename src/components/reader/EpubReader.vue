@@ -3,19 +3,6 @@
     class="epub-reader-container flex flex-col h-full w-full relative"
     :class="{ 'dark-theme': isDarkMode }"
   >
-    <!-- Reader header with controls -->
-    <ReaderHeader
-      :title="bookMetadata.title"
-      :is-dark-mode="isDarkMode"
-      :current-chapter-index="currentChapterIndex"
-      :total-chapters="totalChapters"
-      @increase-font="increaseFontSize"
-      @decrease-font="decreaseFontSize"
-      @toggle-theme="toggleTheme"
-      @previous-chapter="previousChapter"
-      @next-chapter="nextChapter"
-    />
-
     <!-- Loading indicator -->
     <LoadingIndicator :is-visible="isLoading" />
 
@@ -43,7 +30,6 @@ import { useReadingPosition } from "../../composables/useReadingPosition";
 import { useBookmarks } from "../../composables/useBookmarks";
 import { useTheme } from "../../composables/useTheme";
 import { useScrollTracking } from "../../composables/useScrollTracking";
-import ReaderHeader from "./ReaderHeader.vue";
 import ReaderContent from "./ReaderContent.vue";
 import LoadingIndicator from "./LoadingIndicator.vue";
 import ErrorDisplay from "./ErrorDisplay.vue";
@@ -102,12 +88,15 @@ const {
   updateProgress,
 } = useReadingPosition(props.bookId, DEBUG_MODE);
 
-const { bookmarks, loadBookmarks, saveBookmarks, addBookmark } = useBookmarks(props.bookId);
-
-const { applyScrollPosition, setupScrollTracking, handleScroll: scrollHandler } = useScrollTracking(
-  saveReadingPosition,
-  DEBUG_MODE
+const { bookmarks, loadBookmarks, saveBookmarks, addBookmark } = useBookmarks(
+  props.bookId
 );
+
+const {
+  applyScrollPosition,
+  setupScrollTracking,
+  handleScroll: scrollHandler,
+} = useScrollTracking(saveReadingPosition, DEBUG_MODE);
 
 // Refs for DOM elements
 const readerContent = ref(null);
@@ -120,12 +109,15 @@ const positionToRestore = ref(0);
 const scrollPosition = ref(0);
 
 // Update exposed scroll position whenever epubLocation changes
-watch(() => epubLocation.value?.scrollPosition, (newPos) => {
-  if (typeof newPos === 'number' && newPos > 0) {
-    scrollPosition.value = newPos;
-    console.log(`📜 Updating shared scroll position to ${newPos}px`);
+watch(
+  () => epubLocation.value?.scrollPosition,
+  (newPos) => {
+    if (typeof newPos === "number" && newPos > 0) {
+      scrollPosition.value = newPos;
+      console.log(`📜 Updating shared scroll position to ${newPos}px`);
+    }
   }
-});
+);
 
 // Font size controls
 const increaseFontSize = () => {
@@ -160,11 +152,7 @@ const previousChapter = async () => {
 // Function to handle scroll events in the reader
 const handleScroll = (event) => {
   if (readerContent.value) {
-    scrollHandler(
-      event,
-      epubLocation,
-      currentChapterIndex
-    );
+    scrollHandler(event, epubLocation, currentChapterIndex);
   }
 };
 
@@ -174,29 +162,36 @@ const initializeBook = async () => {
     // Load the EPUB
     const bookLoaded = await loadBook(props.bookUrl, props.bookTitle);
     if (!bookLoaded) return;
-    
+
     // Load bookmarks
     loadBookmarks();
 
     // Load saved reading position from localStorage
     const positionLoaded = loadReadingPosition();
-    
+
     if (DEBUG_MODE) {
-      console.log('Position loaded result:', positionLoaded);
-      console.log('Current epubLocation:', epubLocation.value);
+      console.log("Position loaded result:", positionLoaded);
+      console.log("Current epubLocation:", epubLocation.value);
     }
-    
+
     // Restore reading position or start from beginning
-    if (epubLocation.value && typeof epubLocation.value.chapterIndex === "number") {
+    if (
+      epubLocation.value &&
+      typeof epubLocation.value.chapterIndex === "number"
+    ) {
       currentChapterIndex.value = epubLocation.value.chapterIndex;
       // Store the scroll position to restore later
       positionToRestore.value = epubLocation.value.scrollPosition || 0;
-      
+
       // Update the exposed scroll position for the ReaderContent component
       scrollPosition.value = positionToRestore.value;
-      
+
       if (DEBUG_MODE) {
-        console.log(`Will restore to chapter ${currentChapterIndex.value + 1} at position ${Math.round(positionToRestore.value)}px`);
+        console.log(
+          `Will restore to chapter ${
+            currentChapterIndex.value + 1
+          } at position ${Math.round(positionToRestore.value)}px`
+        );
       }
     } else {
       currentChapterIndex.value = 0;
@@ -206,27 +201,35 @@ const initializeBook = async () => {
 
     // Remember the position to restore
     const positionToRestoreAfterLoad = positionToRestore.value;
-    
+
     // Load current chapter
     await loadChapter(currentChapterIndex.value, showParagraphNumbers.value);
-    
+
     // Make sure position value wasn't lost during chapter load
     positionToRestore.value = positionToRestoreAfterLoad;
-    
+
     // Update scrollPosition right after chapter load
     if (positionToRestore.value > 0) {
       scrollPosition.value = positionToRestore.value;
-      console.log(`Force-updating scroll position to ${positionToRestore.value}px after chapter load`);
+      console.log(
+        `Force-updating scroll position to ${positionToRestore.value}px after chapter load`
+      );
     }
-    
+
     // Check if we should restore position
-    const isSameChapter = epubLocation.value && epubLocation.value.chapterIndex === currentChapterIndex.value;
+    const isSameChapter =
+      epubLocation.value &&
+      epubLocation.value.chapterIndex === currentChapterIndex.value;
     shouldRestorePosition.value = isSameChapter;
-    
+
     if (isSameChapter) {
       positionToRestore.value = epubLocation.value.scrollPosition || 0;
       if (DEBUG_MODE) {
-        console.log(`📌 Will restore position to ${Math.round(positionToRestore.value)}px after content load`);
+        console.log(
+          `📌 Will restore position to ${Math.round(
+            positionToRestore.value
+          )}px after content load`
+        );
       }
     } else {
       positionToRestore.value = 0;
@@ -242,33 +245,38 @@ const initializeBook = async () => {
       totalChapters: totalChapters.value,
       savedPosition: epubLocation.value,
       toc: tableOfContents.value,
-      bookmarks: bookmarks.value
+      bookmarks: bookmarks.value,
     });
-    
+
     // After rendering, handle image processing and position restoration
     nextTick(async () => {
       // Process images in the chapter
       if (readerContent.value) {
         await processImages(readerContent.value.contentEl);
       }
-      
+
       // Update scroll position once after content is loaded
       if (positionToRestore.value > 10 && shouldRestorePosition.value) {
         if (DEBUG_MODE) {
-          console.log(`Setting scroll position to ${Math.round(positionToRestore.value)}px after content load`);
+          console.log(
+            `Setting scroll position to ${Math.round(
+              positionToRestore.value
+            )}px after content load`
+          );
         }
-        
+
         // Update the reactive reference that the Reader content will watch
         scrollPosition.value = positionToRestore.value;
-        
+
         // Direct application only once with a brief delay
         setTimeout(() => {
           if (readerContent.value && readerContent.value.scrollContainer) {
-            readerContent.value.scrollContainer.scrollTop = positionToRestore.value;
+            readerContent.value.scrollContainer.scrollTop =
+              positionToRestore.value;
           }
         }, 300);
       }
-      
+
       // Setup scroll tracking
       setupScrollTracking(epubLocation, currentChapterIndex);
     });
@@ -299,11 +307,15 @@ const createBookmark = () => {
 };
 
 // Watch for changes to load the book
-watch(() => props.bookUrl, (newUrl) => {
-  if (newUrl) {
-    initializeBook();
-  }
-}, { immediate: true });
+watch(
+  () => props.bookUrl,
+  (newUrl) => {
+    if (newUrl) {
+      initializeBook();
+    }
+  },
+  { immediate: true }
+);
 
 // Lifecycle hooks
 onMounted(() => {
@@ -311,12 +323,12 @@ onMounted(() => {
   if (props.bookUrl) {
     initializeBook();
   }
-  
+
   // Clean up any existing intervals
   if (window.positionRestorationInterval) {
     clearInterval(window.positionRestorationInterval);
   }
-  
+
   // Clean up any existing timeouts
   if (window.savePositionTimeout) {
     clearTimeout(window.savePositionTimeout);
@@ -328,18 +340,18 @@ onUnmounted(() => {
   if (window.positionRestorationInterval) {
     clearInterval(window.positionRestorationInterval);
   }
-  
+
   if (window.savePositionTimeout) {
     clearTimeout(window.savePositionTimeout);
   }
-  
+
   // Clean up scroll tracking
   window.scrollHandlerAttached = false;
 });
 
 // Expose methods to parent
 defineExpose({
-  createBookmark
+  createBookmark,
 });
 </script>
 
