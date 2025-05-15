@@ -83,6 +83,9 @@
             
             <!-- Right section: settings -->
             <div class="flex items-center space-x-3">
+              <button @click="toggleTocSidebar" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Table of Contents">
+                <span class="text-lg">📑</span>
+              </button>
               <button @click="decreaseFontSize" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Decrease font size">
                 <span class="text-lg">A-</span>
               </button>
@@ -101,6 +104,43 @@
         
         <!-- Custom EPUB Reader Component -->
         <!-- Loading state when book URL is not yet loaded -->
+        <!-- Table of Contents Sidebar -->
+        <div 
+          v-if="showTocSidebar && bookUrl" 
+          class="toc-sidebar fixed top-0 left-0 bottom-0 z-40 p-4 w-80 bg-white dark:bg-gray-800 shadow-lg overflow-auto transition-transform duration-300"
+          :class="{'translate-x-0': showTocSidebar, '-translate-x-full': !showTocSidebar}"
+        >
+          <div class="flex justify-between items-center mb-4 border-b pb-2">
+            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Table of Contents</h3>
+            <button @click="toggleTocSidebar" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+              <span class="text-xl">&times;</span>
+            </button>
+          </div>
+          
+          <div v-if="tocItems.length === 0" class="text-gray-500 dark:text-gray-400 italic text-center py-4">
+            No table of contents available for this book.
+          </div>
+          
+          <ul v-else class="space-y-1">
+            <li v-for="(item, index) in tocItems" :key="index" class="toc-item" :style="{ paddingLeft: `${item.level * 12}px` }">
+              <button 
+                @click="navigateToChapter(item)"
+                class="w-full text-left py-1 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm overflow-hidden overflow-ellipsis whitespace-nowrap transition-colors"
+              >
+                {{ item.label }}
+              </button>
+            </li>
+          </ul>
+        </div>
+        
+        <!-- Overlay when ToC is open -->
+        <div 
+          v-if="showTocSidebar"
+          class="fixed inset-0 bg-black bg-opacity-30 z-30 transition-opacity duration-300"
+          @click="toggleTocSidebar"
+        ></div>
+        
+        <!-- Loading indicator -->
         <div v-if="!bookUrl" class="flex flex-col items-center justify-center h-64 mt-8">
           <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
           <p class="text-gray-600">Loading book data...</p>
@@ -197,6 +237,8 @@ const isNavbarVisible = ref(true);
 const lastScrollTop = ref(0);
 const epubReader = ref(null); // Reference to the epub reader component
 const currentChapterTitle = ref(''); // Current chapter title
+const showTocSidebar = ref(false); // Controls ToC sidebar visibility
+const tocItems = ref([]); // Stores the book's table of contents
 
 // Book info modal
 const showBookInfo = ref(false);
@@ -389,6 +431,12 @@ const handleProgressUpdate = (data) => {
 
 const handleBookLoaded = (metadata) => {
   console.log("Book loaded:", metadata);
+  
+  // Get the table of contents from the EPUB reader component if available
+  if (epubReader.value && epubReader.value.getTableOfContents) {
+    tocItems.value = epubReader.value.getTableOfContents();
+    console.log('Table of contents loaded:', tocItems.value);
+  }
 };
 
 // Handle errors when loading the book
@@ -474,6 +522,29 @@ const getBookUrl = async (book) => {
   // If we get here, we couldn't find the book data
   console.error(`Book data for ${book.id} not found in any storage.`);
   return '';
+};
+
+// Table of Contents actions
+const toggleTocSidebar = () => {
+  showTocSidebar.value = !showTocSidebar.value;
+  console.log('ToC sidebar visibility:', showTocSidebar.value);
+};
+
+// Navigate to specific chapter from Table of Contents
+const navigateToChapter = (tocItem) => {
+  if (!epubReader.value) return;
+  
+  console.log('Navigating to chapter:', tocItem);
+  
+  // Find the spine index that corresponds to the ToC item's href
+  if (epubReader.value.navigateToHref) {
+    epubReader.value.navigateToHref(tocItem.href, tocItem.anchor);
+    
+    // Close the ToC sidebar after navigation
+    showTocSidebar.value = false;
+  } else {
+    console.warn('Navigation method not available in reader component');
+  }
 };
 
 // Book info actions

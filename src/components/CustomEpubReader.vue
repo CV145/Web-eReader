@@ -603,6 +603,66 @@ const toggleParagraphNumbering = async () => {
   await loadChapter(currentChapterIndex.value);
 };
 
+// Get the table of contents from the parser
+const getTableOfContents = () => {
+  if (!epubParser.value || !epubParser.value.toc) {
+    return [];
+  }
+  
+  // Create a flattened array of all TOC items for easier display
+  const flattenToc = (items, result = []) => {
+    items.forEach(item => {
+      // Add the current item
+      result.push(item);
+      
+      // Process subitems if any
+      if (item.subitems && item.subitems.length > 0) {
+        flattenToc(item.subitems, result);
+      }
+    });
+    
+    return result;
+  };
+  
+  return flattenToc(epubParser.value.toc);
+};
+
+// Navigate to a specific chapter by its href
+const navigateToHref = async (href, anchor = null) => {
+  if (!epubParser.value || !epubParser.value.spine) return;
+  
+  console.log(`CustomEpubReader: Navigating to href: ${href}, anchor: ${anchor}`);
+  
+  // Find the spine index that corresponds to the href
+  const targetPath = href.replace(epubParser.value.rootfileDir, '').split('#')[0];
+  const spineIndex = epubParser.value.spine.findIndex(item => {
+    const itemPath = item.href.replace(epubParser.value.rootfileDir, '');
+    return itemPath === targetPath || item.href === href;
+  });
+  
+  if (spineIndex !== -1) {
+    console.log(`CustomEpubReader: Found matching spine item at index ${spineIndex}`);
+    
+    // Load the chapter
+    await loadChapter(spineIndex);
+    
+    // If there's an anchor, scroll to it
+    if (anchor && contentEl.value) {
+      setTimeout(() => {
+        const anchorElement = contentEl.value.querySelector(`#${anchor}, [id='${anchor}']`);
+        if (anchorElement) {
+          anchorElement.scrollIntoView({ behavior: 'smooth' });
+          console.log(`CustomEpubReader: Scrolled to anchor ${anchor}`);
+        } else {
+          console.warn(`CustomEpubReader: Anchor ${anchor} not found in chapter`);
+        }
+      }, 100); // Small delay to ensure the content is rendered
+    }
+  } else {
+    console.warn(`CustomEpubReader: Could not find spine item for href ${href}`);
+  }
+};
+
 // Expose methods to parent component
 defineExpose({
   nextChapter,
@@ -610,7 +670,9 @@ defineExpose({
   toggleParagraphNumbering,
   increaseFontSize,
   decreaseFontSize,
-  toggleTheme
+  toggleTheme,
+  getTableOfContents,
+  navigateToHref
 });
 
 // Lifecycle hooks
