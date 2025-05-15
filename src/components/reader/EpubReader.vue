@@ -117,7 +117,15 @@ const fontSize = ref(18);
 const showParagraphNumbers = ref(false);
 const shouldRestorePosition = ref(false);
 const positionToRestore = ref(0);
-const scrollPosition = computed(() => epubLocation.value?.scrollPosition || 0);
+const scrollPosition = ref(0);
+
+// Update exposed scroll position whenever epubLocation changes
+watch(() => epubLocation.value?.scrollPosition, (newPos) => {
+  if (typeof newPos === 'number' && newPos > 0) {
+    scrollPosition.value = newPos;
+    console.log(`📜 Updating shared scroll position to ${newPos}px`);
+  }
+});
 
 // Font size controls
 const increaseFontSize = () => {
@@ -171,17 +179,45 @@ const initializeBook = async () => {
     loadBookmarks();
 
     // Load saved reading position from localStorage
-    loadReadingPosition();
+    const positionLoaded = loadReadingPosition();
+    
+    if (DEBUG_MODE) {
+      console.log('Position loaded result:', positionLoaded);
+      console.log('Current epubLocation:', epubLocation.value);
+    }
     
     // Restore reading position or start from beginning
     if (epubLocation.value && typeof epubLocation.value.chapterIndex === "number") {
       currentChapterIndex.value = epubLocation.value.chapterIndex;
+      // Store the scroll position to restore later
+      positionToRestore.value = epubLocation.value.scrollPosition || 0;
+      
+      // Update the exposed scroll position for the ReaderContent component
+      scrollPosition.value = positionToRestore.value;
+      
+      if (DEBUG_MODE) {
+        console.log(`Will restore to chapter ${currentChapterIndex.value + 1} at position ${Math.round(positionToRestore.value)}px`);
+      }
     } else {
       currentChapterIndex.value = 0;
+      positionToRestore.value = 0;
+      scrollPosition.value = 0;
     }
 
+    // Remember the position to restore
+    const positionToRestoreAfterLoad = positionToRestore.value;
+    
     // Load current chapter
     await loadChapter(currentChapterIndex.value, showParagraphNumbers.value);
+    
+    // Make sure position value wasn't lost during chapter load
+    positionToRestore.value = positionToRestoreAfterLoad;
+    
+    // Update scrollPosition right after chapter load
+    if (positionToRestore.value > 0) {
+      scrollPosition.value = positionToRestore.value;
+      console.log(`Force-updating scroll position to ${positionToRestore.value}px after chapter load`);
+    }
     
     // Check if we should restore position
     const isSameChapter = epubLocation.value && epubLocation.value.chapterIndex === currentChapterIndex.value;
@@ -209,25 +245,28 @@ const initializeBook = async () => {
       bookmarks: bookmarks.value
     });
     
-    // Add scroll tracking after the book is loaded
+    // After rendering, handle image processing and position restoration
     nextTick(async () => {
       // Process images in the chapter
       if (readerContent.value) {
         await processImages(readerContent.value.contentEl);
       }
       
-      // Restore scroll position if needed
-      if (shouldRestorePosition.value && positionToRestore.value > 10 && readerContent.value) {
+      // Update scroll position once after content is loaded
+      if (positionToRestore.value > 10 && shouldRestorePosition.value) {
         if (DEBUG_MODE) {
-          console.log(`🔥 Restoring position to ${Math.round(positionToRestore.value)}px`);
+          console.log(`Setting scroll position to ${Math.round(positionToRestore.value)}px after content load`);
         }
         
-        // Apply scroll position
-        applyScrollPosition(
-          positionToRestore.value, 
-          readerContent.value.scrollContainer, 
-          readerContent.value.contentEl
-        );
+        // Update the reactive reference that the Reader content will watch
+        scrollPosition.value = positionToRestore.value;
+        
+        // Direct application only once with a brief delay
+        setTimeout(() => {
+          if (readerContent.value && readerContent.value.scrollContainer) {
+            readerContent.value.scrollContainer.scrollTop = positionToRestore.value;
+          }
+        }, 300);
       }
       
       // Setup scroll tracking
