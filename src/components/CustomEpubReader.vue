@@ -48,175 +48,384 @@
           <span v-else class="text-lg">🌙</span>
         </button>
 
-        <!-- Paragraph numbering toggle -->
-        <button
-          @click="toggleParagraphNumbering"
-          class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-          :class="{ 'bg-blue-100 dark:bg-blue-900': showParagraphNumbers }"
-          title="Toggle paragraph numbering"
-        >
-          <span class="text-lg">¶</span>
-        </button>
-
-        <!-- Chapter navigation -->
-        <div class="navigation-controls flex items-center space-x-2">
+        <!-- Chapter navigation buttons -->
+        <div class="flex items-center space-x-2">
           <button
-            @click="prevChapter"
-            class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-            :disabled="currentChapterIndex <= 0"
+            @click="previousChapter"
+            :disabled="currentChapterIndex === 0"
+            class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
             title="Previous chapter"
           >
-            <span class="text-lg">◀️</span>
+            <span class="text-lg">◀</span>
           </button>
+          <div class="text-sm text-gray-600 dark:text-gray-300">
+            {{ currentChapterIndex + 1 }}/{{ totalChapters }}
+          </div>
           <button
             @click="nextChapter"
-            class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-            :disabled="currentChapterIndex >= totalChapters - 1"
+            :disabled="currentChapterIndex === totalChapters - 1"
+            class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50"
             title="Next chapter"
           >
-            <span class="text-lg">▶️</span>
+            <span class="text-lg">▶</span>
           </button>
         </div>
       </div>
     </header>
 
-    <!-- Reader Content Area -->
-    <main
-      class="reader-content flex-grow relative bg-gray-50 dark:bg-gray-900 overflow-auto"
+    <!-- Loading indicator -->
+    <div
+      v-if="isLoading"
+      class="fixed inset-0 flex justify-center items-center bg-white bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75 z-50"
     >
-      <!-- Loading spinner -->
-      <div
-        v-if="isLoading"
-        class="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800 bg-opacity-75 dark:bg-opacity-75"
-      >
-        <div
-          class="animate-spin rounded-full h-12 w-12 border-t-4 border-blue-500"
-        ></div>
+      <div class="text-center">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-t-blue-500 border-gray-300 mb-2"></div>
+        <p class="text-gray-700 dark:text-gray-300">Loading...</p>
       </div>
+    </div>
 
-      <!-- Error message -->
-      <div
-        v-else-if="errorMessage"
-        class="absolute inset-0 flex flex-col items-center justify-center p-4 text-center bg-red-50 dark:bg-red-900 dark:bg-opacity-80"
-      >
-        <p class="text-red-600 dark:text-red-300 font-semibold mb-2">
-          Error loading book:
-        </p>
-        <p class="text-red-500 dark:text-red-400 text-sm mb-4">
-          {{ errorMessage }}
-        </p>
+    <!-- Error message -->
+    <div
+      v-if="errorMessage"
+      class="fixed inset-0 flex justify-center items-center bg-white bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75 z-50"
+    >
+      <div class="bg-red-50 dark:bg-red-900 p-6 rounded-lg shadow-lg max-w-md">
+        <h3 class="text-red-700 dark:text-red-300 font-bold mb-2">Error</h3>
+        <p class="text-gray-800 dark:text-gray-200">{{ errorMessage }}</p>
         <button
-          @click="loadBook"
-          class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          @click="errorMessage = null"
+          class="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
         >
-          Retry
+          Dismiss
         </button>
       </div>
+    </div>
 
-      <!-- Book content -->
+    <!-- Main content area -->
+    <main
+      ref="scrollContainer"
+      class="reader-content flex-grow overflow-y-auto bg-gray-100 dark:bg-gray-900 transition-colors duration-300"
+      :style="{ fontSize: `${fontSize}px` }"
+      @scroll="handleScroll"
+    >
+      <!-- Chapter content rendered here -->
       <div
-        v-else-if="chapterContent"
-        class="chapter-content px-4 py-3 max-w-3xl mx-auto"
-        :style="contentStyle"
+        ref="contentEl"
+        class="chapter-content-wrapper max-w-3xl mx-auto p-6 bg-white dark:bg-gray-800 shadow-md dark:shadow-none min-h-full transition-colors duration-300"
+        id="chapter-content-container"
       >
-        <!-- Use v-html with sanitized content -->
-        <div v-html="chapterContent" ref="contentEl"></div>
-      </div>
-
-      <!-- Page info display -->
-      <div
-        v-if="!isLoading && !errorMessage && chapterContent"
-        class="page-info absolute bottom-2 right-2 p-2 bg-black bg-opacity-50 text-white text-xs rounded"
-      >
-        Chapter {{ currentChapterIndex + 1 }}/{{ totalChapters }} |
-        {{ pageInfo }}
+        <div v-if="currentChapterContent" v-html="currentChapterContent"></div>
+        <div v-else class="p-8 text-center text-gray-600 dark:text-gray-400">
+          No content to display
+        </div>
       </div>
     </main>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
-import { useStorage } from "@vueuse/core";
-import EpubParser from "../utils/epubParser";
-import { testEpubFile, createDownloadLink } from "../utils/epubTest";
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from "vue";
+import { EpubParser } from "../utils/epubParser";
+import { testEpubFile } from "../utils/epubValidator";
+import { createDownloadLink } from "../utils/fileUtils";
 
 // Props
 const props = defineProps({
-  bookId: {
-    type: String,
-    default: "alice",
-  },
-  bookTitle: {
-    type: String,
-    default: "Alice's Adventures in Wonderland",
-  },
   bookUrl: {
     type: String,
     required: true,
   },
-  theme: {
+  bookId: {
     type: String,
-    default: "light",
+    required: true,
   },
-  fontSize: {
-    type: Number,
-    default: 16,
+  bookTitle: {
+    type: String,
+    default: "",
   },
 });
 
 // Emits
 const emit = defineEmits([
-  "progress-update",
   "book-loaded",
   "book-load-error",
-  "font-size-change",
-  "theme-toggle",
+  "chapter-changed",
+  "position-updated",
 ]);
 
-// State
+// Refs for DOM elements
+const contentEl = ref(null);
+const scrollContainer = ref(null);
+
+// State variables
 const epubParser = ref(null);
 const isLoading = ref(true);
 const errorMessage = ref(null);
-const chapterContent = ref("");
+const currentChapterContent = ref("");
 const currentChapterIndex = ref(0);
-const totalChapters = ref(0);
-const pageInfo = ref("");
-const contentEl = ref(null);
-const showParagraphNumbers = ref(false);
 const bookMetadata = ref({
-  title: props.bookTitle,
+  title: "",
   creator: "",
   publisher: "",
 });
+const totalChapters = ref(0);
+const fontSize = ref(18);
+const isDarkMode = ref(false);
+const showParagraphNumbers = ref(false);
+const readingProgress = ref(0);
+const epubLocation = ref(null);
 
-// Computed
-const isDarkMode = computed(() => props.theme === "dark");
-const contentStyle = computed(() => ({
-  "font-size": `${props.fontSize}px`,
-  "line-height": "1.5",
-  color: isDarkMode.value ? "#e0e0e0" : "#333",
-  "background-color": isDarkMode.value ? "#1a1a1a" : "#fff",
-  padding: "1rem",
-  "min-height": "100%",
-}));
+// Keep track of whether we want to restore position
+const shouldRestorePosition = ref(false);
+const positionToRestore = ref(0);
 
-// Store and retrieve reading position
-const epubLocation = useStorage(`book-progress-${props.bookId}`, {
-  chapterIndex: 0,
-  scrollPosition: 0,
-});
+// Debug mode
+const DEBUG_MODE = true;
 
-// No longer importing the EPUB file URL statically from Vite
-// We're now using the bookUrl prop passed from the parent component
+// Function to handle scroll events in the reader
+const handleScroll = (event) => {
+  if (!event.target) return;
+  
+  // Check if we should log debug info
+  const shouldLog = !window.lastScrollLogTime || (Date.now() - window.lastScrollLogTime > 1000);
+  if (shouldLog && DEBUG_MODE) {
+    console.log('Scroll event detected on', event.target.tagName);
+    window.lastScrollLogTime = Date.now();
+  }
+  
+  // Get scroll position
+  const scrollTop = event.target.scrollTop;
+  if (typeof scrollTop === 'number' && scrollTop > 0) {
+    // Update location data
+    epubLocation.value = {
+      chapterIndex: currentChapterIndex.value,
+      scrollPosition: scrollTop
+    };
+    
+    // Save reading position after a delay
+    if (window.savePositionTimeout) {
+      clearTimeout(window.savePositionTimeout);
+    }
+    window.savePositionTimeout = setTimeout(() => {
+      saveReadingPosition();
+    }, 300);
+  }
+};
+
+// Function to save reading position
+const saveReadingPosition = () => {
+  if (!props.bookId) return;
+  
+  try {
+    // Prepare position data
+    const positionData = {
+      chapterIndex: epubLocation.value.chapterIndex,
+      scrollPosition: epubLocation.value.scrollPosition,
+      savedAt: new Date().toISOString()
+    };
+    
+    // Only save if position is significant (not at the top)
+    if (positionData.scrollPosition > 10) {
+      // Save to localStorage and sessionStorage for redundancy
+      const dataString = JSON.stringify(positionData);
+      localStorage.setItem(`book-progress-${props.bookId}`, dataString);
+      sessionStorage.setItem(`book-progress-${props.bookId}`, dataString);
+      
+      // Also store in window for immediate access
+      window.lastSavedPosition = positionData;
+      
+      if (DEBUG_MODE) {
+        console.log(`📥 POSITION SAVED: Chapter ${positionData.chapterIndex + 1}, position ${Math.round(positionData.scrollPosition)}px`);
+      }
+      
+      // Emit position update event
+      emit("position-updated", positionData);
+    }
+  } catch (error) {
+    console.error('Error saving reading position:', error);
+  }
+};
+
+// Function to load the reading position
+const loadReadingPosition = () => {
+  if (!props.bookId) return false;
+  
+  try {
+    if (DEBUG_MODE) {
+      console.log(`🔍 Attempting to load position for book ID: ${props.bookId}`);
+    }
+    
+    // Try multiple sources in order of reliability
+    let savedData = null;
+    
+    // Try window object first (most immediate)
+    if (window.lastSavedPosition) {
+      savedData = window.lastSavedPosition;
+    }
+    
+    // Next try sessionStorage
+    if (!savedData) {
+      const sessionData = sessionStorage.getItem(`book-progress-${props.bookId}`);
+      if (sessionData) {
+        try {
+          savedData = JSON.parse(sessionData);
+        } catch (e) {}
+      }
+    }
+    
+    // Finally try localStorage
+    if (!savedData) {
+      const localData = localStorage.getItem(`book-progress-${props.bookId}`);
+      if (localData) {
+        try {
+          savedData = JSON.parse(localData);
+        } catch (e) {}
+      }
+    }
+    
+    if (savedData && typeof savedData.chapterIndex === 'number') {
+      // Ensure we have a valid scroll position or default to 0
+      const scrollPosition = typeof savedData.scrollPosition === 'number' ? savedData.scrollPosition : 0;
+      
+      epubLocation.value = {
+        chapterIndex: savedData.chapterIndex,
+        scrollPosition: scrollPosition
+      };
+      
+      if (DEBUG_MODE) {
+        console.log(`📤 LOADED POSITION: Chapter ${savedData.chapterIndex + 1}, position ${Math.round(scrollPosition)}px`);
+      }
+      
+      return true;
+    }
+  } catch (error) {
+    console.error('Error loading reading position:', error);
+  }
+  
+  return false;
+};
+
+// Function to apply scroll position
+const applyScrollPosition = (position) => {
+  if (!position || position <= 0) return;
+  
+  // Find all possible scrollable containers
+  const containers = [
+    scrollContainer.value,
+    contentEl.value,
+    document.querySelector('.chapter-content-wrapper'),
+    document.querySelector('.reader-content'),
+    document.querySelector('main')
+  ].filter(Boolean);
+  
+  // Apply position to all containers
+  containers.forEach(container => {
+    if (container && typeof container.scrollTop !== 'undefined') {
+      try {
+        container.scrollTop = position;
+        if (DEBUG_MODE) {
+          console.log(`Applied position ${Math.round(position)}px to ${container.tagName}`);
+        }
+      } catch (e) {}
+    }
+  });
+};
+
+// Function to set up scroll tracking
+const setupScrollTracking = () => {
+  if (window.scrollHandlerAttached) return;
+  
+  if (DEBUG_MODE) {
+    console.log('🔥 Setting up global scroll tracking');
+  }
+  
+  // Create a safe handler that won't throw errors
+  const safeScrollHandler = (event) => {
+    try {
+      if (event && event.target) {
+        handleGlobalScroll(event);
+      }
+    } catch (error) {
+      console.error('Error in scroll handler:', error);
+    }
+  };
+  
+  // Add scroll listeners to multiple elements
+  window.addEventListener('scroll', safeScrollHandler, { passive: true });
+  document.addEventListener('scroll', safeScrollHandler, { passive: true });
+  
+  // Also add wheel event listener as a backup
+  window.addEventListener('wheel', () => {
+    setTimeout(() => saveReadingPosition(), 100);
+  }, { passive: true });
+  
+  // Find and track all scrollable elements
+  const scrollableSelectors = [
+    '.chapter-content-wrapper',
+    '.reader-content',
+    '#chapter-content-container',
+    'main'
+  ];
+  
+  // Add listeners to each scrollable element
+  scrollableSelectors.forEach(selector => {
+    const elements = document.querySelectorAll(selector);
+    if (elements.length > 0) {
+      elements.forEach(el => {
+        try {
+          el.addEventListener('scroll', safeScrollHandler, { passive: true });
+          if (DEBUG_MODE) {
+            console.log(`Added scroll listener to ${el.tagName}.${el.className}`);
+          }
+        } catch (e) {}
+      });
+    }
+  });
+  
+  // Mark as attached
+  window.scrollHandlerAttached = true;
+};
+
+// Global scroll handler
+const handleGlobalScroll = (event) => {
+  if (!event || !event.target) return;
+  
+  // Find the scrollable parent
+  let scrollElement = event.target;
+  let scrollPosition = 0;
+  
+  try {
+    // Get scroll position directly
+    if (typeof scrollElement.scrollTop === 'number') {
+      scrollPosition = scrollElement.scrollTop;
+    }
+    
+    // Only process significant scroll positions
+    if (scrollPosition > 10) {
+      // Update location data
+      epubLocation.value = {
+        chapterIndex: currentChapterIndex.value,
+        scrollPosition: scrollPosition
+      };
+      
+      // Debounce the save operation
+      if (window.globalScrollSaveTimeout) {
+        clearTimeout(window.globalScrollSaveTimeout);
+      }
+      
+      window.globalScrollSaveTimeout = setTimeout(() => {
+        saveReadingPosition();
+      }, 300);
+    }
+  } catch (e) {
+    console.error('Error in global scroll handler:', e);
+  }
+};
 
 // Initialize EPUB parser and load book
 const loadBook = async () => {
   try {
-    console.log(
-      "CustomEpubReader: Starting to load book from:",
-      props.bookUrl.substring(0, 50) + "..."
-    );
+    console.log("Starting to load book from:", props.bookUrl.substring(0, 50) + "...");
     isLoading.value = true;
     errorMessage.value = null;
 
@@ -225,162 +434,23 @@ const loadBook = async () => {
       throw new Error("No book URL provided");
     }
 
-    // For built-in books (relative paths), ensure proper path format
-    let bookUrl = props.bookUrl;
-
-    // Skip validation for already processed URLs (blob or data URLs)
-    let skipValidation =
-      bookUrl.startsWith("blob:") || bookUrl.startsWith("data:");
-
-    if (!skipValidation) {
-      // First, test if the EPUB file is valid
-      console.log("CustomEpubReader: Testing EPUB file validity...");
-      const testResult = await testEpubFile(bookUrl);
-      console.log("CustomEpubReader: EPUB test result:", testResult);
-
-      if (!testResult.success) {
-        console.error(
-          "CustomEpubReader: EPUB file validation failed:",
-          testResult.error
-        );
-
-        // Create a download link for debugging
-        const downloadContainer = document.createElement("div");
-        downloadContainer.style.padding = "20px";
-        downloadContainer.style.backgroundColor = "#f8f9fa";
-        downloadContainer.style.border = "1px solid #ddd";
-        downloadContainer.style.borderRadius = "5px";
-        downloadContainer.style.margin = "20px auto";
-        downloadContainer.style.maxWidth = "600px";
-
-        const heading = document.createElement("h3");
-        heading.textContent = "EPUB File Issue";
-        heading.style.marginBottom = "10px";
-
-        const message = document.createElement("p");
-        message.textContent = `There appears to be an issue with the EPUB file: ${testResult.error}`;
-        message.style.marginBottom = "15px";
-
-        const instructions = document.createElement("p");
-        instructions.textContent =
-          "You can download the file to examine it or try a different EPUB file:";
-        instructions.style.marginBottom = "15px";
-
-        const downloadLink = createDownloadLink(
-          props.bookUrl,
-          `${props.bookId}.epub`
-        );
-
-        downloadContainer.appendChild(heading);
-        downloadContainer.appendChild(message);
-        downloadContainer.appendChild(instructions);
-        downloadContainer.appendChild(downloadLink);
-
-        // Add to the DOM for debugging purposes
-        if (contentEl.value) {
-          contentEl.value.innerHTML = "";
-          contentEl.value.appendChild(downloadContainer);
-        }
-
-        throw new Error(`EPUB file validation failed: ${testResult.error}`);
-      }
-    }
-
     // Create a new parser instance
     epubParser.value = new EpubParser();
-
-      // Try a more direct approach to fetch the file
+    
+    // Try to load the book
     try {
-      console.log("CustomEpubReader: Processing book content...");
-
       // Handle different URL types
-      if (bookUrl.startsWith("data:")) {
-        console.log("CustomEpubReader: Processing data URL...");
-        try {
-          // Data URL format: data:application/epub+zip;base64,BASE64DATA
-          const base64Content = bookUrl.split(",")[1];
-          if (!base64Content) {
-            throw new Error("Invalid data URL format");
-          }
-
-          // Convert base64 to ArrayBuffer
-          const binaryString = atob(base64Content);
-          const bytes = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-
-          const arrayBuffer = bytes.buffer;
-          console.log(
-            "CustomEpubReader: Data URL processed, size:",
-            arrayBuffer.byteLength,
-            "bytes"
-          );
-
-          // Load and parse the EPUB file
-          await epubParser.value.loadFile(arrayBuffer);
-        } catch (dataUrlError) {
-          console.error("CustomEpubReader: Data URL processing error:", dataUrlError);
-          throw new Error(`Failed to process data URL: ${dataUrlError.message}`);
-        }
-      } else if (bookUrl.startsWith("blob:")) {
-        console.log("CustomEpubReader: Processing blob URL...");
-        try {
-          // Blob URL - fetch it normally
-          const response = await fetch(bookUrl);
-          if (!response.ok) {
-            throw new Error(`Blob URL HTTP error! status: ${response.status}`);
-          }
-          
-          const arrayBuffer = await response.arrayBuffer();
-          console.log(
-            "CustomEpubReader: Blob data received, size:",
-            arrayBuffer.byteLength,
-            "bytes"
-          );
-
-          // Load and parse the EPUB file
-          await epubParser.value.loadFile(arrayBuffer);
-        } catch (blobError) {
-          console.error("CustomEpubReader: Blob URL processing error:", blobError);
-          throw new Error(`Failed to process blob URL: ${blobError.message}. The URL may have expired if the page was refreshed.`);
-        }
+      if (props.bookUrl.startsWith("data:") || props.bookUrl.startsWith("blob:")) {
+        const response = await fetch(props.bookUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        await epubParser.value.loadFile(arrayBuffer);
       } else {
-        console.log("CustomEpubReader: Fetching from normal URL...");
-        try {
-          // Regular URL - make a direct fetch
-          const response = await fetch(bookUrl, {
-            headers: {
-              Accept: "application/octet-stream",
-              "Content-Type": "application/octet-stream",
-            },
-            cache: "no-cache", // Try to bypass cache issues
-          });
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-
-          // Get the raw binary data as ArrayBuffer
-          const arrayBuffer = await response.arrayBuffer();
-          console.log(
-            "CustomEpubReader: Received file data, size:",
-            arrayBuffer.byteLength,
-            "bytes"
-          );
-
-          // Load and parse the EPUB file
-          await epubParser.value.loadFile(arrayBuffer);
-        } catch (fetchError) {
-          console.error("CustomEpubReader: URL fetch error:", fetchError);
-          throw new Error(`Failed to fetch EPUB file: ${fetchError.message}`);
-        }
+        const response = await fetch(props.bookUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        await epubParser.value.loadFile(arrayBuffer);
       }
     } catch (fetchError) {
-      console.error(
-        "CustomEpubReader: Error processing book data:",
-        fetchError
-      );
+      console.error("Error processing book data:", fetchError);
       throw new Error(`Failed to process book data: ${fetchError.message}`);
     }
 
@@ -393,11 +463,11 @@ const loadBook = async () => {
 
     totalChapters.value = epubParser.value.spine.length;
 
+    // Load saved reading position from localStorage
+    loadReadingPosition();
+    
     // Restore reading position or start from beginning
-    if (
-      epubLocation.value &&
-      typeof epubLocation.value.chapterIndex === "number"
-    ) {
+    if (epubLocation.value && typeof epubLocation.value.chapterIndex === "number") {
       currentChapterIndex.value = epubLocation.value.chapterIndex;
     } else {
       currentChapterIndex.value = 0;
@@ -408,14 +478,20 @@ const loadBook = async () => {
 
     // Book is successfully loaded
     emit("book-loaded", {
-      id: props.bookId,
       title: bookMetadata.value.title,
-      metadata: epubParser.value.metadata,
+      creator: bookMetadata.value.creator,
+      totalChapters: totalChapters.value,
+      savedPosition: epubLocation.value
+    });
+    
+    // Add scroll tracking after the book is loaded
+    nextTick(() => {
+      setupScrollTracking();
     });
 
     isLoading.value = false;
   } catch (error) {
-    console.error("CustomEpubReader: Error loading book:", error);
+    console.error("Error loading book:", error);
     errorMessage.value = error.message || "Failed to load book";
     isLoading.value = false;
     emit("book-load-error", {
@@ -429,12 +505,31 @@ const loadBook = async () => {
 const loadChapter = async (index) => {
   try {
     isLoading.value = true;
+    
+    if (DEBUG_MODE) {
+      console.log(`📖 LOADING CHAPTER ${index + 1}`);
+    }
 
     // Go to specified chapter and get content with options
     const chapter = await epubParser.value.goToChapter(index, {
       numberParagraphs: showParagraphNumbers.value,
     });
-    chapterContent.value = chapter.content;
+    
+    // Check if we should restore position
+    const isSameChapter = epubLocation.value && epubLocation.value.chapterIndex === index;
+    shouldRestorePosition.value = isSameChapter;
+    
+    if (isSameChapter) {
+      positionToRestore.value = epubLocation.value.scrollPosition || 0;
+      if (DEBUG_MODE) {
+        console.log(`📌 Will restore position to ${Math.round(positionToRestore.value)}px after content load`);
+      }
+    } else {
+      positionToRestore.value = 0;
+    }
+    
+    // Update chapter content
+    currentChapterContent.value = chapter.content;
     currentChapterIndex.value = chapter.index;
 
     // Update page info
@@ -443,373 +538,225 @@ const loadChapter = async (index) => {
     // Save current position
     epubLocation.value = {
       chapterIndex: currentChapterIndex.value,
-      scrollPosition: 0,
+      scrollPosition: positionToRestore.value,
     };
 
     isLoading.value = false;
 
-    // After rendering, restore scroll position or process images
-    await nextTick();
-    if (contentEl.value) {
-      // Process any images in the chapter
-      processImages();
-
-      // Restore scroll position if available
-      if (
-        epubLocation.value &&
-        epubLocation.value.scrollPosition &&
-        currentChapterIndex.value === epubLocation.value.chapterIndex
-      ) {
-        contentEl.value.scrollTop = epubLocation.value.scrollPosition;
+    // After rendering, handle image processing and position restoration
+    nextTick(async () => {
+      // Process images in the chapter
+      await processImages();
+      
+      // Restore scroll position if needed
+      if (shouldRestorePosition.value && positionToRestore.value > 10) {
+        if (DEBUG_MODE) {
+          console.log(`🔥 Restoring position to ${Math.round(positionToRestore.value)}px`);
+        }
+        
+        // First immediate application
+        applyScrollPosition(positionToRestore.value);
+        
+        // Then set up a persistent interval to ensure it sticks
+        if (window.positionRestorationInterval) {
+          clearInterval(window.positionRestorationInterval);
+        }
+        
+        // Set up an interval to ensure position is maintained
+        window.positionRestorationInterval = setInterval(() => {
+          // Only reapply if current position is near top
+          if (scrollContainer.value && scrollContainer.value.scrollTop < 10 && positionToRestore.value > 10) {
+            applyScrollPosition(positionToRestore.value);
+          }
+        }, 200);
+        
+        // Clear the interval after 5 seconds
+        setTimeout(() => {
+          if (window.positionRestorationInterval) {
+            clearInterval(window.positionRestorationInterval);
+            window.positionRestorationInterval = null;
+          }
+        }, 5000);
       }
-    }
-
-    // Update progress
-    updateProgress();
+      
+      // Update progress
+      updateProgress();
+    });
   } catch (error) {
-    console.error("CustomEpubReader: Error loading chapter:", error);
+    console.error("Error loading chapter:", error);
     errorMessage.value = `Failed to load chapter: ${error.message}`;
     isLoading.value = false;
   }
 };
 
-// Process any images in the chapter - replace placeholders with actual images
+// Process images in the EPUB content
 const processImages = async () => {
-  if (!contentEl.value || !epubParser.value) return;
-
-  const images = contentEl.value.querySelectorAll("img[data-original-src]");
+  if (!contentEl.value) return;
+  
+  // Get all images in the content
+  const images = contentEl.value.querySelectorAll("img");
+  if (images.length === 0) return;
+  
+  // Process each image
   for (const img of images) {
     try {
-      const originalSrc = img.getAttribute("data-original-src");
-      const baseDir = epubParser.value.spine[currentChapterIndex.value].href
-        .split("/")
-        .slice(0, -1)
-        .join("/");
-      const fullPath = baseDir ? `${baseDir}/${originalSrc}` : originalSrc;
-
-      const imageUrl = await epubParser.value.getFileAsUrl(fullPath);
-      img.src = imageUrl;
-    } catch (error) {
-      console.warn("CustomEpubReader: Error loading image:", error);
-      // Keep placeholder on error
+      // Check if image has a valid source
+      const src = img.getAttribute("src");
+      if (!src) continue;
+      
+      // Add loading attribute and styles
+      img.setAttribute("loading", "lazy");
+      img.style.maxWidth = "100%";
+      img.style.height = "auto";
+      
+      // Add missing alt text if needed
+      if (!img.hasAttribute("alt")) {
+        img.setAttribute("alt", "Book illustration");
+      }
+    } catch (e) {
+      console.error("Error processing image:", e);
     }
   }
 };
 
-// Navigation functions
-const nextChapter = async () => {
+// Navigation methods
+const nextChapter = () => {
   if (currentChapterIndex.value < totalChapters.value - 1) {
-    await loadChapter(currentChapterIndex.value + 1);
+    loadChapter(currentChapterIndex.value + 1);
   }
 };
 
-const prevChapter = async () => {
+const previousChapter = () => {
   if (currentChapterIndex.value > 0) {
-    await loadChapter(currentChapterIndex.value - 1);
-  }
-};
-
-// Update page info (could add page number calculation in the future)
-const updatePageInfo = () => {
-  if (!epubParser.value) return;
-
-  const currentChapter = currentChapterIndex.value + 1;
-  const totalChapters = epubParser.value.spine.length;
-  let tocLabel = "";
-
-  // Try to find current chapter in TOC
-  if (epubParser.value.toc.length > 0) {
-    const findInToc = (items, href) => {
-      for (const item of items) {
-        if (
-          item.href === epubParser.value.spine[currentChapterIndex.value].href
-        ) {
-          return item.label;
-        }
-        if (item.subitems && item.subitems.length > 0) {
-          const found = findInToc(item.subitems, href);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-
-    tocLabel =
-      findInToc(
-        epubParser.value.toc,
-        epubParser.value.spine[currentChapterIndex.value].href
-      ) || "";
-  }
-
-  pageInfo.value = tocLabel
-    ? `${tocLabel}`
-    : `Chapter ${currentChapter}/${totalChapters}`;
-};
-
-// Calculate and emit reading progress
-const updateProgress = () => {
-  if (!epubParser.value) return;
-
-  // Simple progress based on chapter position
-  // Calculate progress as a decimal (0-1) instead of percentage
-  const progress = currentChapterIndex.value / (totalChapters.value - 1);
-  
-  console.log(`Emitting progress update: ${progress} (${Math.round(progress * 100)}%)`);
-  console.log(`Current chapter: ${currentChapterIndex.value + 1}/${totalChapters.value}, Title: ${pageInfo.value}`);
-
-  // Emit with detailed data
-  emit("progress-update", {
-    progress,
-    chapterIndex: currentChapterIndex.value,
-    chapterTitle: pageInfo.value,
-  });
-};
-
-// Handle scroll to save position
-const handleScroll = () => {
-  if (contentEl.value && !isLoading.value) {
-    epubLocation.value = {
-      chapterIndex: currentChapterIndex.value,
-      scrollPosition: contentEl.value.scrollTop,
-    };
+    loadChapter(currentChapterIndex.value - 1);
   }
 };
 
 // Font size controls
 const increaseFontSize = () => {
-  emit("font-size-change", props.fontSize + 1);
+  fontSize.value = Math.min(fontSize.value + 2, 32);
 };
 
 const decreaseFontSize = () => {
-  if (props.fontSize > 12) {
-    emit("font-size-change", props.fontSize - 1);
-  }
+  fontSize.value = Math.max(fontSize.value - 2, 12);
 };
 
-// Theme toggle
+// Toggle theme (dark/light mode)
 const toggleTheme = () => {
-  emit("theme-toggle");
+  isDarkMode.value = !isDarkMode.value;
 };
 
-// Paragraph numbering toggle
-const toggleParagraphNumbering = async () => {
-  showParagraphNumbers.value = !showParagraphNumbers.value;
-  // Save preference to localStorage
-  localStorage.setItem(
-    `paragraph-numbers-${props.bookId}`,
-    showParagraphNumbers.value
-  );
-  // Reload current chapter with new setting
-  await loadChapter(currentChapterIndex.value);
+// Update page info
+const updatePageInfo = () => {
+  // Update the reading progress
+  readingProgress.value = Math.round((currentChapterIndex.value / (totalChapters.value - 1)) * 100);
 };
 
-// Get the table of contents from the parser
-const getTableOfContents = () => {
-  if (!epubParser.value || !epubParser.value.toc) {
-    return [];
-  }
+// Update progress
+const updateProgress = () => {
+  // Update overall progress percentage
+  const progress = (currentChapterIndex.value / (totalChapters.value - 1)) * 100;
+  readingProgress.value = Math.round(progress);
   
-  // Create a flattened array of all TOC items for easier display
-  const flattenToc = (items, result = []) => {
-    items.forEach(item => {
-      // Add the current item
-      result.push(item);
-      
-      // Process subitems if any
-      if (item.subitems && item.subitems.length > 0) {
-        flattenToc(item.subitems, result);
-      }
-    });
-    
-    return result;
-  };
-  
-  return flattenToc(epubParser.value.toc);
-};
-
-// Navigate to a specific chapter by its href
-const navigateToHref = async (href, anchor = null) => {
-  if (!epubParser.value || !epubParser.value.spine) return;
-  
-  console.log(`CustomEpubReader: Navigating to href: ${href}, anchor: ${anchor}`);
-  
-  // Find the spine index that corresponds to the href
-  const targetPath = href.replace(epubParser.value.rootfileDir, '').split('#')[0];
-  const spineIndex = epubParser.value.spine.findIndex(item => {
-    const itemPath = item.href.replace(epubParser.value.rootfileDir, '');
-    return itemPath === targetPath || item.href === href;
-  });
-  
-  if (spineIndex !== -1) {
-    console.log(`CustomEpubReader: Found matching spine item at index ${spineIndex}`);
-    
-    // Load the chapter
-    await loadChapter(spineIndex);
-    
-    // If there's an anchor, scroll to it
-    if (anchor && contentEl.value) {
-      setTimeout(() => {
-        const anchorElement = contentEl.value.querySelector(`#${anchor}, [id='${anchor}']`);
-        if (anchorElement) {
-          anchorElement.scrollIntoView({ behavior: 'smooth' });
-          console.log(`CustomEpubReader: Scrolled to anchor ${anchor}`);
-        } else {
-          console.warn(`CustomEpubReader: Anchor ${anchor} not found in chapter`);
-        }
-      }, 100); // Small delay to ensure the content is rendered
-    }
-  } else {
-    console.warn(`CustomEpubReader: Could not find spine item for href ${href}`);
+  // Store current progress data
+  try {
+    localStorage.setItem(`book-progress-percentage-${props.bookId}`, String(readingProgress.value));
+  } catch (e) {
+    console.error('Error saving progress percentage:', e);
   }
 };
 
-// Expose methods to parent component
-defineExpose({
-  nextChapter,
-  prevChapter,
-  toggleParagraphNumbering,
-  increaseFontSize,
-  decreaseFontSize,
-  toggleTheme,
-  getTableOfContents,
-  navigateToHref
-});
+// Watch for changes to load the book
+watch(() => props.bookUrl, (newUrl) => {
+  if (newUrl) {
+    loadBook();
+  }
+}, { immediate: true });
 
 // Lifecycle hooks
-onMounted(async () => {
-  console.log("CustomEpubReader: Component mounted");
-
-  // Load paragraph numbering preference from localStorage
-  const savedParagraphNumbering = localStorage.getItem(
-    `paragraph-numbers-${props.bookId}`
-  );
-  if (savedParagraphNumbering !== null) {
-    showParagraphNumbers.value = savedParagraphNumbering === "true";
+onMounted(() => {
+  // Load book when component is mounted
+  if (props.bookUrl) {
+    loadBook();
   }
-
-  await loadBook();
-
-  // Add scroll listener
-  if (contentEl.value) {
-    contentEl.value.addEventListener("scroll", handleScroll);
+  
+  // Clean up any existing intervals
+  if (window.positionRestorationInterval) {
+    clearInterval(window.positionRestorationInterval);
+  }
+  
+  // Clean up any existing timeouts
+  if (window.savePositionTimeout) {
+    clearTimeout(window.savePositionTimeout);
   }
 });
 
 onUnmounted(() => {
-  // Clean up resources
-  if (epubParser.value) {
-    epubParser.value.cleanup();
+  // Clean up event listeners and intervals
+  if (window.positionRestorationInterval) {
+    clearInterval(window.positionRestorationInterval);
   }
-
-  // Remove scroll listener
-  if (contentEl.value) {
-    contentEl.value.removeEventListener("scroll", handleScroll);
+  
+  if (window.savePositionTimeout) {
+    clearTimeout(window.savePositionTimeout);
   }
+  
+  // Remove scroll listeners
+  window.removeEventListener('scroll', handleGlobalScroll);
+  document.removeEventListener('scroll', handleGlobalScroll);
 });
-
-// Watch for theme or font size changes
-watch(
-  () => props.theme,
-  () => {
-    // No need to do anything, the computed styles will update
-  }
-);
-
-watch(
-  () => props.fontSize,
-  () => {
-    // No need to do anything, the computed styles will update
-  }
-);
 </script>
 
 <style scoped>
 .epub-reader-container {
-  height: 100%;
-  width: 100%;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .reader-content {
-  overflow-y: auto;
-  position: relative;
+  scroll-behavior: smooth;
 }
 
-.chapter-content {
-  min-height: 100%;
+.chapter-content-wrapper {
+  min-height: 95vh;
+  line-height: 1.6;
 }
 
+/* Dark mode styles */
 .dark-mode {
-  background-color: #1a1a1a;
-  color: #e0e0e0;
+  @apply text-gray-200;
 }
 
-/* Style buttons in dark mode */
-.dark-mode button {
-  color: #e0e0e0;
+.dark-mode .chapter-content-wrapper {
+  @apply bg-gray-800 text-gray-200;
 }
 
-.dark-mode button:hover {
-  background-color: #374151;
-}
-</style>
-
-<style>
-/* These styles apply to the HTML content from the EPUB */
-.chapter-content img {
-  max-width: 100%;
-  height: auto;
-  margin: 1rem auto;
-  display: block;
+/* Add responsive adjustments */
+@media (max-width: 640px) {
+  .chapter-content-wrapper {
+    padding: 1rem;
+  }
 }
 
-.chapter-content h1,
-.chapter-content h2,
-.chapter-content h3,
-.chapter-content h4,
-.chapter-content h5,
-.chapter-content h6 {
-  font-weight: bold;
-  margin-top: 1.5em;
-  margin-bottom: 0.5em;
+/* Custom scrollbar */
+.reader-content::-webkit-scrollbar {
+  width: 8px;
 }
 
-.chapter-content p {
-  margin-bottom: 1em;
-  color: inherit !important;
-  text-decoration: none !important;
+.reader-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
 }
 
-/* Override any text styling to use default text colors */
-.chapter-content {
-  color: inherit !important;
+.reader-content::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
 }
 
-/* Apply to all elements */
-.chapter-content * {
-  color: inherit !important;
-  text-decoration: none !important;
+.dark-mode .reader-content::-webkit-scrollbar-track {
+  background: #2d3748;
 }
 
-/* Make sure paragraphs never get underlined, even on hover */
-.chapter-content p,
-.chapter-content p:hover {
-  color: inherit !important;
-  text-decoration: none !important;
-}
-
-/* Only apply link styling to actual anchor links */
-.chapter-content a,
-.chapter-content a:hover {
-  color: inherit !important;
-  text-decoration: none !important;
-}
-
-/* Add a small color change on hover for actual links, but no underline */
-.chapter-content a:hover {
-  opacity: 0.8;
-}
-
-.dark-mode .chapter-content a:hover {
-  opacity: 0.8;
+.dark-mode .reader-content::-webkit-scrollbar-thumb {
+  background: #4a5568;
 }
 </style>

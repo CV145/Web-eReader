@@ -111,26 +111,82 @@
           :class="{'translate-x-0': showTocSidebar, '-translate-x-full': !showTocSidebar}"
         >
           <div class="flex justify-between items-center mb-4 border-b pb-2">
-            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Table of Contents</h3>
+            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Contents & Bookmarks</h3>
             <button @click="toggleTocSidebar" class="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
               <span class="text-xl">&times;</span>
             </button>
           </div>
           
-          <div v-if="tocItems.length === 0" class="text-gray-500 dark:text-gray-400 italic text-center py-4">
-            No table of contents available for this book.
+          <!-- Navigation tabs -->
+          <div class="flex border-b mb-3">
+            <button 
+              @click="activeTab = 'contents'" 
+              class="py-2 px-4 text-sm font-medium border-b-2 transition-colors" 
+              :class="activeTab === 'contents' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
+            >
+              Chapters
+            </button>
+            <button 
+              @click="activeTab = 'bookmarks'"
+              class="py-2 px-4 text-sm font-medium border-b-2 transition-colors flex items-center" 
+              :class="activeTab === 'bookmarks' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'"
+            >
+              Bookmarks
+              <span v-if="bookmarks.length > 0" class="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full">{{ bookmarks.length }}</span>
+            </button>
           </div>
           
-          <ul v-else class="space-y-1">
-            <li v-for="(item, index) in tocItems" :key="index" class="toc-item" :style="{ paddingLeft: `${item.level * 12}px` }">
-              <button 
-                @click="navigateToChapter(item)"
-                class="w-full text-left py-1 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm overflow-hidden overflow-ellipsis whitespace-nowrap transition-colors"
-              >
-                {{ item.label }}
-              </button>
-            </li>
-          </ul>
+          <!-- Chapters tab -->
+          <div v-if="activeTab === 'contents'">
+            <div v-if="tocItems.length === 0" class="text-gray-500 dark:text-gray-400 italic text-center py-4">
+              No table of contents available for this book.
+            </div>
+            
+            <ul v-else class="space-y-1">
+              <li v-for="(item, index) in tocItems" :key="index" class="toc-item" :style="{ paddingLeft: `${item.level * 12}px` }">
+                <button 
+                  @click="navigateToChapter(item)"
+                  class="w-full text-left py-1 px-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm overflow-hidden overflow-ellipsis whitespace-nowrap transition-colors"
+                >
+                  {{ item.label }}
+                </button>
+              </li>
+            </ul>
+          </div>
+          
+          <!-- Bookmarks tab -->
+          <div v-if="activeTab === 'bookmarks'">
+            <div v-if="bookmarks.length === 0" class="text-gray-500 dark:text-gray-400 italic text-center py-4">
+              <p>No bookmarks added yet.</p>
+              <p class="text-xs mt-2">Right-click on any paragraph or hold Alt and click to add a bookmark.</p>
+            </div>
+            
+            <ul v-else class="space-y-2 mt-1">
+              <li v-for="bookmark in bookmarks" :key="bookmark.id" class="bookmark-item bg-gray-50 dark:bg-gray-700 rounded-md overflow-hidden">
+                <div class="p-2">
+                  <div class="flex justify-between items-start mb-1">
+                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ bookmark.chapterTitle }}</span>
+                    <button 
+                      @click="removeBookmark(bookmark.id)" 
+                      class="text-red-500 hover:text-red-700 dark:hover:text-red-400 text-xs"
+                      title="Remove bookmark"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                  <button 
+                    @click="navigateToBookmark(bookmark)"
+                    class="w-full text-left py-1 text-sm text-gray-800 dark:text-gray-200 hover:underline"
+                  >
+                    {{ bookmark.paragraphText }}
+                  </button>
+                  <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    {{ formatBookmarkDate(bookmark.createdAt) }}
+                  </div>
+                </div>
+              </li>
+            </ul>
+          </div>
         </div>
         
         <!-- Overlay when ToC is open -->
@@ -160,6 +216,7 @@
           @book-load-error="handleBookLoadError"
           @font-size-change="updateFontSize"
           @theme-toggle="handleThemeToggle"
+          @bookmark-added="handleBookmarkAdded"
         />
 
         <!-- Book info overlay (can be toggled) -->
@@ -239,6 +296,8 @@ const epubReader = ref(null); // Reference to the epub reader component
 const currentChapterTitle = ref(''); // Current chapter title
 const showTocSidebar = ref(false); // Controls ToC sidebar visibility
 const tocItems = ref([]); // Stores the book's table of contents
+const bookmarks = ref([]); // Stores the user's bookmarks
+const activeTab = ref('contents'); // Active tab in the ToC sidebar: 'contents' or 'bookmarks'
 
 // Book info modal
 const showBookInfo = ref(false);
@@ -436,6 +495,38 @@ const handleBookLoaded = (metadata) => {
   if (epubReader.value && epubReader.value.getTableOfContents) {
     tocItems.value = epubReader.value.getTableOfContents();
     console.log('Table of contents loaded:', tocItems.value);
+    
+    // Also load any existing bookmarks
+    loadBookmarks();
+  }
+};
+
+// Handle new bookmark added event
+const handleBookmarkAdded = (bookmark) => {
+  console.log('New bookmark added:', bookmark);
+  
+  // Update bookmarks list
+  loadBookmarks();
+  
+  // Show a notification
+  const notification = {
+    type: 'success',
+    message: 'Bookmark added',
+    duration: 3000
+  };
+  
+  // If the ToC sidebar is not open, briefly open it and switch to bookmarks tab
+  if (!showTocSidebar.value) {
+    activeTab.value = 'bookmarks';
+    showTocSidebar.value = true;
+    
+    // Auto-close after a delay
+    setTimeout(() => {
+      showTocSidebar.value = false;
+    }, 2000);
+  } else {
+    // If it's already open, just switch to the bookmarks tab
+    activeTab.value = 'bookmarks';
   }
 };
 
@@ -528,6 +619,59 @@ const getBookUrl = async (book) => {
 const toggleTocSidebar = () => {
   showTocSidebar.value = !showTocSidebar.value;
   console.log('ToC sidebar visibility:', showTocSidebar.value);
+  
+  // Load bookmarks when opening the sidebar
+  if (showTocSidebar.value && epubReader.value) {
+    loadBookmarks();
+  }
+};
+
+// Load bookmarks from the EPUB reader component
+const loadBookmarks = () => {
+  if (epubReader.value && epubReader.value.getBookmarks) {
+    bookmarks.value = epubReader.value.getBookmarks();
+    console.log('Loaded bookmarks:', bookmarks.value);
+  }
+};
+
+// Remove a bookmark by ID
+const removeBookmark = (bookmarkId) => {
+  if (epubReader.value && epubReader.value.removeBookmark) {
+    const success = epubReader.value.removeBookmark(bookmarkId);
+    if (success) {
+      // Update the bookmarks list
+      loadBookmarks();
+    }
+  }
+};
+
+// Navigate to a specific bookmark
+const navigateToBookmark = (bookmark) => {
+  if (epubReader.value && epubReader.value.navigateToBookmark) {
+    epubReader.value.navigateToBookmark(bookmark);
+    // Close the ToC sidebar after navigation
+    showTocSidebar.value = false;
+  }
+};
+
+// Format bookmark date for display
+const formatBookmarkDate = (dateString) => {
+  if (!dateString) return '';
+  
+  try {
+    const date = new Date(dateString);
+    // Format: May 14, 2025 at 7:30 PM
+    return date.toLocaleString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true 
+    });
+  } catch (error) {
+    return dateString;
+  }
 };
 
 // Navigate to specific chapter from Table of Contents
