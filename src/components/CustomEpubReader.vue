@@ -44,8 +44,16 @@ const emit = defineEmits([
 // Reference to the underlying EpubReader component
 const epubReader = ref(null);
 
+// Store table of contents data
+const tableOfContents = ref([]);
+
 // Event handlers that proxy to the underlying EpubReader component
 const handleBookLoaded = (metadata) => {
+  // Store the table of contents from the metadata
+  if (metadata && metadata.toc) {
+    tableOfContents.value = metadata.toc;
+    console.log('TOC received in CustomEpubReader:', metadata.toc.length, 'items');
+  }
   emit("book-loaded", metadata);
 };
 
@@ -73,5 +81,6 @@ const addBookmark = (paragraph = null) => {
 // Expose methods to parent components
 defineExpose({
   addBookmark,
+  getTableOfContents: () => tableOfContents.value || [],
 });
 </script>
