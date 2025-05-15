@@ -1,6 +1,8 @@
 <template>
   <header
-    class="reader-header flex justify-between items-center p-2 border-b border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm"
+    class="reader-header flex justify-between items-center p-3 border-b shadow-sm"
+    :class="isDarkMode ? 'border-gray-700' : 'border-gray-300'"
+    style="background-color: var(--background-primary); color: var(--text-primary);"
   >
     <div class="flex items-center space-x-2">
       <router-link

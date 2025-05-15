@@ -1,7 +1,7 @@
 <template>
-  <div class="reader" :class="{ 'dark-mode': isDarkMode }">
+  <div class="reader" :class="{ 'dark-theme': isDarkMode }">
     <div
-      class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-md min-h-[70vh] reader-container"
+      class="max-w-4xl mx-auto p-8 rounded-lg shadow-md min-h-[70vh] reader-container"
       :style="readerStyle"
     >
       <!-- Reading controls toolbar -->
@@ -57,8 +57,9 @@
 
       <div v-else class="reader-view relative">
         <!-- Sticky navbar that follows scrolling -->
-        <div class="sticky-navbar fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-800 shadow-md transition-all duration-300" 
-             :class="{ 'opacity-100': isNavbarVisible, 'opacity-0 pointer-events-none': !isNavbarVisible }">
+        <div class="sticky-navbar fixed top-0 left-0 right-0 z-50 shadow-md transition-all duration-300" 
+             :class="{ 'opacity-100': isNavbarVisible, 'opacity-0 pointer-events-none': !isNavbarVisible }"
+             :style="{ backgroundColor: 'var(--background-primary)', color: 'var(--text-primary)' }">
           <div class="max-w-7xl mx-auto px-4 py-2 flex justify-between items-center">
             <!-- Left section: back button -->
             <div>
@@ -107,8 +108,9 @@
         <!-- Table of Contents Sidebar -->
         <div 
           v-if="showTocSidebar && bookUrl" 
-          class="toc-sidebar fixed top-0 left-0 bottom-0 z-40 p-4 w-80 bg-white dark:bg-gray-800 shadow-lg overflow-auto transition-transform duration-300"
+          class="toc-sidebar fixed top-0 left-0 bottom-0 z-40 p-4 w-80 shadow-lg overflow-auto transition-transform duration-300"
           :class="{'translate-x-0': showTocSidebar, '-translate-x-full': !showTocSidebar}"
+          :style="{ backgroundColor: 'var(--background-primary)', color: 'var(--text-primary)' }"
         >
           <div class="flex justify-between items-center mb-4 border-b pb-2">
             <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200">Contents & Bookmarks</h3>
@@ -698,28 +700,52 @@ const toggleBookInfo = () => {
 </script>
 
 <style scoped>
-.dark-mode .reader-container {
-  background-color: #1a1a1a;
-  color: #e0e0e0;
+.reader {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 1rem;
+  background-color: var(--background-secondary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-.dark-mode button {
-  background-color: #333;
-  color: #e0e0e0;
+.reader-container {
+  background-color: var(--background-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 10px var(--shadow-color);
+  transition: all 0.3s ease;
 }
 
-.dark-mode button:hover {
-  background-color: #444;
+.reader-view {
+  position: relative;
 }
 
-.author {
-  font-style: italic;
-  margin-top: -1rem;
-  margin-bottom: 2rem;
-  color: #666;
+/* Table of contents sidebar styling */
+.toc-sidebar h3 {
+  color: var(--text-primary);
 }
 
-.dark-mode .author {
-  color: #aaa;
+.toc-sidebar button {
+  color: var(--text-primary);
+}
+
+.toc-sidebar button:hover {
+  background-color: var(--background-tertiary);
+}
+
+/* Bookmark styling */
+.bookmark-item {
+  background-color: var(--background-secondary);
+  border: 1px solid var(--border-color);
+}
+
+/* Media queries for responsive design */
+@media (max-width: 640px) {
+  .reader-container {
+    padding: 1rem;
+  }
 }
 </style>

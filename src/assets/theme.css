@@ -1,0 +1,93 @@
+/* Base theme variables */
+:root {
+  /* Light theme (default) */
+  --background-primary: #ffffff;
+  --background-secondary: #f5f7fa;
+  --background-tertiary: #e9ecef;
+  --text-primary: #333333;
+  --text-secondary: #555555;
+  --border-color: #e0e0e0;
+  --highlight-color: #4f46e5;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --scrollbar-track: #f1f1f1;
+  --scrollbar-thumb: #c1c1c1;
+}
+
+/* Dark theme */
+.dark-theme {
+  --background-primary: #121212;
+  --background-secondary: #1e1e1e;
+  --background-tertiary: #2d2d2d;
+  --text-primary: #e0e0e0;
+  --text-secondary: #aaaaaa;
+  --border-color: #444444;
+  --highlight-color: #60a5fa;
+  --shadow-color: rgba(0, 0, 0, 0.4);
+  --scrollbar-track: #2d3748;
+  --scrollbar-thumb: #4a5568;
+}
+
+/* Apply theme variables to elements */
+body {
+  background-color: var(--background-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Reader area styling */
+.reader-container {
+  background-color: var(--background-secondary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.chapter-content-wrapper {
+  background-color: var(--background-primary) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 4px 6px var(--shadow-color) !important;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+/* Controls and UI elements */
+button {
+  background-color: var(--background-tertiary);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+button:hover {
+  background-color: var(--highlight-color);
+  color: white;
+}
+
+/* Theme toggle button specific styling */
+.theme-toggle-btn {
+  background-color: transparent;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 50%;
+  transition: background-color 0.3s;
+}
+
+.dark-theme .theme-toggle-btn {
+  color: #ffeb3b; /* Yellow for sun icon in dark mode */
+}
+
+.theme-toggle-btn:hover {
+  background-color: var(--background-tertiary);
+}

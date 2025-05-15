@@ -1,7 +1,7 @@
 <template>
   <div
-    class="epub-reader-container flex flex-col h-full w-full relative text-gray-800"
-    :class="{ 'dark-mode': isDarkMode }"
+    class="epub-reader-container flex flex-col h-full w-full relative"
+    :class="{ 'dark-theme': isDarkMode }"
   >
     <!-- Reader header with controls -->
     <ReaderHeader
@@ -347,10 +347,6 @@ defineExpose({
 .epub-reader-container {
   height: 100vh;
   overflow: hidden;
-}
-
-/* Dark mode styles */
-.dark-mode {
-  @apply text-gray-200;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 </style>
