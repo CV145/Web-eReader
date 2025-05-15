@@ -52,7 +52,11 @@ const handleBookLoaded = (metadata) => {
   // Store the table of contents from the metadata
   if (metadata && metadata.toc) {
     tableOfContents.value = metadata.toc;
-    console.log('TOC received in CustomEpubReader:', metadata.toc.length, 'items');
+    console.log(
+      "TOC received in CustomEpubReader:",
+      metadata.toc.length,
+      "items"
+    );
   }
   emit("book-loaded", metadata);
 };
@@ -78,9 +82,43 @@ const addBookmark = (paragraph = null) => {
   return epubReader.value?.createBookmark(paragraph);
 };
 
+// Navigation methods
+const nextChapter = () => {
+  epubReader.value?.nextChapter();
+};
+
+const previousChapter = () => {
+  epubReader.value?.previousChapter();
+};
+
+// Font size controls
+const increaseFontSize = () => {
+  epubReader.value?.increaseFontSize();
+};
+
+const decreaseFontSize = () => {
+  epubReader.value?.decreaseFontSize();
+};
+
+// Toggle paragraph numbering
+const toggleParagraphNumbering = () => {
+  epubReader.value?.toggleParagraphNumbering();
+};
+
+// Theme toggle
+const toggleTheme = () => {
+  epubReader.value?.toggleTheme();
+};
+
 // Expose methods to parent components
 defineExpose({
   addBookmark,
   getTableOfContents: () => tableOfContents.value || [],
+  nextChapter,
+  previousChapter,
+  increaseFontSize,
+  decreaseFontSize,
+  toggleParagraphNumbering,
+  toggleTheme,
 });
 </script>

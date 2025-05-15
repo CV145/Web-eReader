@@ -425,7 +425,7 @@ const nextPage = () => {
 const prevPage = () => {
   if (epubReader.value) {
     console.log("Navigating to previous page");
-    epubReader.value.prevChapter();
+    epubReader.value.previousChapter();
   } else {
     console.warn("EpubReader component not found");
   }

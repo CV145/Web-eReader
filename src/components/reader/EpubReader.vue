@@ -104,7 +104,7 @@ const readerContent = ref(null);
 // State variables
 const fontSize = ref(18);
 const showParagraphNumbers = ref(false);
-const shouldRestorePosition = ref(false);
+const shouldRestorePosition = ref(true);
 const positionToRestore = ref(0);
 const scrollPosition = ref(0);
 
@@ -126,6 +126,11 @@ const increaseFontSize = () => {
 
 const decreaseFontSize = () => {
   fontSize.value = Math.max(fontSize.value - 2, 12);
+};
+
+// Toggle paragraph numbering
+const toggleParagraphNumbering = () => {
+  showParagraphNumbers.value = !showParagraphNumbers.value;
 };
 
 // Navigation methods
@@ -349,8 +354,14 @@ onUnmounted(() => {
   window.scrollHandlerAttached = false;
 });
 
-// Expose methods to parent
+// Expose methods for the parent component to use
 defineExpose({
+  nextChapter,
+  previousChapter,
+  increaseFontSize,
+  decreaseFontSize,
+  toggleTheme,
+  toggleParagraphNumbering,
   createBookmark,
 });
 </script>
