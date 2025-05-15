@@ -18,6 +18,7 @@
       :chapter-content="currentChapterContent"
       :font-size="fontSize"
       :scroll-position="scrollPosition"
+      :show-paragraph-numbers="showParagraphNumbers"
       @scroll="handleScroll"
     />
   </div>
@@ -131,6 +132,26 @@ const decreaseFontSize = () => {
 // Toggle paragraph numbering
 const toggleParagraphNumbering = () => {
   showParagraphNumbers.value = !showParagraphNumbers.value;
+  console.log(
+    `Paragraph numbering ${showParagraphNumbers.value ? "enabled" : "disabled"}`
+  );
+
+  // Reload the current chapter with the new paragraph numbering setting
+  loadCurrentChapterWithParagraphNumbers();
+};
+
+// Helper function to reload the current chapter with paragraph numbers
+const loadCurrentChapterWithParagraphNumbers = async () => {
+  try {
+    console.log(
+      `Reloading chapter with paragraph numbering: ${showParagraphNumbers.value}`
+    );
+    if (typeof currentChapterIndex.value === "number") {
+      await loadChapter(currentChapterIndex.value, showParagraphNumbers.value);
+    }
+  } catch (error) {
+    console.error("Error reloading chapter with paragraph numbers:", error);
+  }
 };
 
 // Navigation methods
