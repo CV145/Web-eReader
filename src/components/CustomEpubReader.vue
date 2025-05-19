@@ -82,6 +82,21 @@ const addBookmark = (paragraph = null) => {
   return epubReader.value?.createBookmark(paragraph);
 };
 
+// Get all bookmarks for the current book
+const getBookmarks = () => {
+  return epubReader.value?.getBookmarks() || [];
+};
+
+// Remove a bookmark by ID
+const removeBookmark = (bookmarkId) => {
+  return epubReader.value?.removeBookmark(bookmarkId) || false;
+};
+
+// Navigate to a specific bookmark
+const navigateToBookmark = (bookmark) => {
+  return epubReader.value?.navigateToBookmark(bookmark);
+};
+
 // Navigation methods
 const nextChapter = () => {
   epubReader.value?.nextChapter();
@@ -113,6 +128,9 @@ const toggleTheme = () => {
 // Expose methods to parent components
 defineExpose({
   addBookmark,
+  getBookmarks,
+  removeBookmark,
+  navigateToBookmark,
   getTableOfContents: () => tableOfContents.value || [],
   nextChapter,
   previousChapter,

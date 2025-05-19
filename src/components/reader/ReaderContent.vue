@@ -1,3 +1,5 @@
+<!--ReaderContent.vue: Responsible for rendering chapter content and handling user interactions with the content-->
+
 <template>
   <main
     ref="scrollContainer"
@@ -19,6 +21,8 @@
         backgroundColor: isDarkMode ? '#121212' : '#ffffff',
         color: isDarkMode ? '#e0e0e0' : '#333333',
       }"
+      @contextmenu.prevent="handleContextMenu"
+      @click="handleClick"
     >
       <div
         v-if="chapterContent"
@@ -73,23 +77,137 @@ const handleContentScroll = (event) => {
   emit("scroll", event);
 };
 
+// Handle right-click (context menu) events for creating bookmarks
+const handleContextMenu = (event) => {
+  // Find the closest paragraph element
+  const paragraph = findClosestParagraph(event.target);
+  if (paragraph) {
+    // Emit event to create a bookmark with this paragraph
+    emit("create-bookmark", paragraph);
+    // Show a small visual feedback
+    showBookmarkFeedback(paragraph);
+  }
+};
+
+// Handle click events on bookmark icons (using event delegation)
+const handleClick = (event) => {
+  // Check if Alt key was pressed during click (existing functionality)
+  if (event.altKey) {
+    const paragraph = findClosestParagraph(event.target);
+    if (paragraph) {
+      emit("create-bookmark", paragraph);
+      showBookmarkFeedback(paragraph);
+      event.preventDefault();
+    }
+    return;
+  }
+
+  // Check if the click was on the bookmark icon
+  if (event.target.classList.contains("bookmark-icon")) {
+    const paragraph = findClosestParagraph(event.target);
+    if (paragraph) {
+      emit("create-bookmark", paragraph);
+      showBookmarkFeedback(paragraph);
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    return;
+  }
+};
+
+// Find the closest paragraph element to the current target
+const findClosestParagraph = (element) => {
+  // If the element itself is a paragraph, return it
+  if (element.tagName === "P") {
+    return element;
+  }
+
+  // Check if the element is within a paragraph
+  let current = element;
+  while (current && current !== contentEl.value) {
+    if (current.tagName === "P") {
+      return current;
+    }
+    current = current.parentElement;
+  }
+
+  // If no paragraph found, return null
+  return null;
+};
+
+// Show a visual feedback when a bookmark is created
+const showBookmarkFeedback = (paragraph) => {
+  // Create a temporary visual indicator
+  const feedback = document.createElement("div");
+  feedback.textContent = "🔖 Bookmark added";
+  feedback.style.position = "absolute";
+  feedback.style.left = `${paragraph.offsetLeft + paragraph.offsetWidth / 2}px`;
+  feedback.style.top = `${paragraph.offsetTop - 30}px`;
+  feedback.style.backgroundColor = isDarkMode.value ? "#444" : "#fff";
+  feedback.style.color = isDarkMode.value ? "#fff" : "#333";
+  feedback.style.padding = "5px 10px";
+  feedback.style.borderRadius = "4px";
+  feedback.style.boxShadow = "0 2px 4px rgba(0,0,0,0.2)";
+  feedback.style.opacity = "0";
+  feedback.style.transform = "translateX(-50%)";
+  feedback.style.transition = "opacity 0.3s, transform 0.3s";
+  feedback.style.zIndex = "100";
+
+  // Add to DOM
+  contentEl.value.appendChild(feedback);
+
+  // Show the feedback with a slight delay
+  setTimeout(() => {
+    feedback.style.opacity = "1";
+    feedback.style.transform = "translateX(-50%) translateY(-10px)";
+  }, 10);
+
+  // Remove after animation completes
+  setTimeout(() => {
+    feedback.style.opacity = "0";
+    feedback.style.transform = "translateX(-50%) translateY(-20px)";
+
+    setTimeout(() => {
+      contentEl.value.removeChild(feedback);
+    }, 300);
+  }, 2000);
+};
+
 // Process the chapter content to add paragraph numbers if needed
+// and add bookmark event handlers to paragraphs
 const processedContent = computed(() => {
   if (!props.chapterContent) return "";
 
-  // If paragraph numbering is disabled, return the original content
-  if (!props.showParagraphNumbers) return props.chapterContent;
-
-  // Add paragraph numbers by wrapping each paragraph in a container with a number
+  // Create a DOM parser to work with the HTML
   const parser = new DOMParser();
   const doc = parser.parseFromString(props.chapterContent, "text/html");
+
+  // Get all paragraphs
   const paragraphs = doc.querySelectorAll("p");
 
-  // Add numbers to each paragraph
+  // Add bookmark icon event handlers to each paragraph
+  paragraphs.forEach((p, index) => {
+    // Add a data attribute to help identify paragraphs
+    p.dataset.paragraphIndex = index;
+
+    // Create a bookmark icon element
+    const bookmarkIcon = doc.createElement("span");
+    bookmarkIcon.className = "bookmark-icon";
+    bookmarkIcon.textContent = "🔖";
+
+    // Add the bookmark icon to the paragraph
+    p.appendChild(bookmarkIcon);
+  });
+
+  // If paragraph numbering is disabled, return the modified content
+  if (!props.showParagraphNumbers) return doc.body.innerHTML;
+
+  // Add paragraph numbers if enabled
   paragraphs.forEach((p, index) => {
     // Create a wrapper for the paragraph
     const wrapper = doc.createElement("div");
     wrapper.className = "paragraph-numbered";
+    wrapper.dataset.paragraphIndex = index;
 
     // Create the number element
     const numElement = doc.createElement("span");
@@ -175,6 +293,7 @@ defineExpose({
 .reader-content-html :deep(p) {
   margin-bottom: 1em;
   line-height: 1.6;
+  position: relative; /*Absolute positioning of bookmark icon*/
 }
 
 /* Add styles for numbered paragraphs */
@@ -182,6 +301,52 @@ defineExpose({
   position: relative;
   padding-left: 2.5rem;
   margin-bottom: 1em;
+}
+
+/* Create the bookmark icon container that appears on hover */
+.reader-content-html :deep(p) {
+  position: relative;
+  /* Add padding to make room for the bookmark icon */
+  padding-right: 30px;
+}
+
+/* Style for the bookmark icon itself */
+.reader-content-html :deep(.bookmark-icon) {
+  position: absolute;
+  right: -30px;
+  top: 0;
+  width: 24px;
+  height: 24px;
+  display: none; /* Hidden by default */
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  z-index: 50;
+}
+
+/* Show bookmark icon when paragraph is hovered */
+.reader-content-html :deep(p:hover) .reader-content-html :deep(.bookmark-icon) {
+  display: flex;
+}
+
+/* Keep the icon visible when hovering over the icon itself */
+.reader-content-html :deep(.bookmark-icon:hover) {
+  transform: scale(1.1);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* Dark mode style for the bookmark icon */
+.dark-theme .reader-content-html :deep(.bookmark-icon) {
+  background-color: rgba(50, 50, 50, 0.8);
+}
+
+/* Remove the old pseudo-element approach */
+.reader-content-html :deep(p:hover::after) {
+  content: none;
 }
 
 .reader-content-html :deep(.paragraph-number) {

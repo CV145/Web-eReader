@@ -20,6 +20,7 @@
       :scroll-position="scrollPosition"
       :show-paragraph-numbers="showParagraphNumbers"
       @scroll="handleScroll"
+      @create-bookmark="handleCreateBookmark"
     />
   </div>
 </template>
@@ -89,9 +90,15 @@ const {
   updateProgress,
 } = useReadingPosition(props.bookId, DEBUG_MODE);
 
-const { bookmarks, loadBookmarks, saveBookmarks, addBookmark } = useBookmarks(
-  props.bookId
-);
+const {
+  bookmarks,
+  loadBookmarks,
+  saveBookmarks,
+  addBookmark,
+  getBookmarks,
+  removeBookmark,
+  navigateToBookmark,
+} = useBookmarks(props.bookId);
 
 const {
   applyScrollPosition,
@@ -130,8 +137,14 @@ const decreaseFontSize = () => {
 };
 
 // Toggle paragraph numbering
-const toggleParagraphNumbering = () => {
-  showParagraphNumbers.value = !showParagraphNumbers.value;
+const toggleParagraphNumbering = (value = undefined) => {
+  // If a specific value is provided, use it; otherwise toggle
+  if (value !== undefined) {
+    showParagraphNumbers.value = value;
+  } else {
+    showParagraphNumbers.value = !showParagraphNumbers.value;
+  }
+
   console.log(
     `Paragraph numbering ${showParagraphNumbers.value ? "enabled" : "disabled"}`
   );
@@ -180,6 +193,29 @@ const handleScroll = (event) => {
   if (readerContent.value) {
     scrollHandler(event, epubLocation, currentChapterIndex);
   }
+};
+
+// Create a bookmark from a paragraph element
+const handleCreateBookmark = (paragraphElement) => {
+  if (readerContent.value) {
+    try {
+      const bookmark = addBookmark(
+        readerContent.value.contentEl,
+        readerContent.value.scrollContainer,
+        currentChapterIndex.value,
+        epubLocation.value,
+        bookMetadata.value,
+        paragraphElement // Pass the specific paragraph element
+      );
+
+      emit("bookmark-added", bookmark);
+      return bookmark;
+    } catch (error) {
+      console.error("Error creating bookmark:", error);
+      return null;
+    }
+  }
+  return null;
 };
 
 // Initialize EPUB parser and load book
@@ -384,6 +420,9 @@ defineExpose({
   toggleTheme,
   toggleParagraphNumbering,
   createBookmark,
+  navigateToBookmark,
+  getBookmarks,
+  removeBookmark,
 });
 </script>
 

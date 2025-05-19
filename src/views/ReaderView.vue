@@ -412,6 +412,14 @@ watch(currentBook, (newBook) => {
   }
 });
 
+// Watch for changes to the paragraph numbering setting and persist it
+watch(
+  () => settingsStore.paragraphNumbering,
+  (newValue) => {
+    localStorage.setItem("paragraphNumbering", JSON.stringify(newValue));
+  }
+);
+
 // Handle page navigation
 const nextPage = () => {
   if (epubReader.value) {
@@ -432,9 +440,22 @@ const prevPage = () => {
 };
 
 const toggleParagraphNumbering = () => {
+  // Toggle the setting in the store
+  settingsStore.paragraphNumbering = !settingsStore.paragraphNumbering;
+
+  // Save directly to localStorage for persistence
+  localStorage.setItem(
+    "paragraphNumbering",
+    JSON.stringify(settingsStore.paragraphNumbering)
+  );
+
+  // Apply the setting to the epubReader component
   if (epubReader.value) {
-    console.log("Toggling paragraph numbering");
-    epubReader.value.toggleParagraphNumbering();
+    console.log(
+      "Toggling paragraph numbering to:",
+      settingsStore.paragraphNumbering
+    );
+    epubReader.value.toggleParagraphNumbering(settingsStore.paragraphNumbering);
   } else {
     console.warn("EpubReader component not found");
   }
@@ -480,6 +501,30 @@ onMounted(() => {
     readingProgress.value = currentBook.value.progress;
     loadBookUrl(currentBook.value);
   }
+
+  // Load paragraph numbering setting from localStorage on component mount
+  const savedParagraphNumbering = localStorage.getItem("paragraphNumbering");
+  if (savedParagraphNumbering !== null) {
+    settingsStore.paragraphNumbering = JSON.parse(savedParagraphNumbering);
+    console.log(
+      "Loaded paragraph numbering from localStorage:",
+      settingsStore.paragraphNumbering
+    );
+  }
+
+  // Apply initial paragraph numbering state from settings
+  // This needs to be done after the epubReader component is mounted
+  setTimeout(() => {
+    if (epubReader.value && settingsStore.paragraphNumbering !== undefined) {
+      console.log(
+        "Applying initial paragraph numbering:",
+        settingsStore.paragraphNumbering
+      );
+      epubReader.value.toggleParagraphNumbering(
+        settingsStore.paragraphNumbering
+      );
+    }
+  }, 500); // Small delay to ensure component is fully mounted
 
   // Add event listeners for keyboard navigation and scroll
   window.addEventListener("keydown", handleKeyDown);
