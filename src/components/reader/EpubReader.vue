@@ -35,6 +35,8 @@ import { useScrollTracking } from "../../composables/useScrollTracking";
 import ReaderContent from "./ReaderContent.vue";
 import LoadingIndicator from "./LoadingIndicator.vue";
 import ErrorDisplay from "./ErrorDisplay.vue";
+// Import the settings store
+import { useSettingsStore } from "../../stores/settingsStore";
 
 // Props
 const props = defineProps({
@@ -106,11 +108,14 @@ const {
   handleScroll: scrollHandler,
 } = useScrollTracking(saveReadingPosition, DEBUG_MODE);
 
+const settingsStore = useSettingsStore();
+
 // Refs for DOM elements
 const readerContent = ref(null);
 
 // State variables
-const fontSize = ref(18);
+// Replace the local fontSize ref with a computed property
+const fontSize = computed(() => settingsStore.fontSize);
 const showParagraphNumbers = ref(false);
 const shouldRestorePosition = ref(true);
 const positionToRestore = ref(0);
@@ -128,12 +133,13 @@ watch(
 );
 
 // Font size controls
+// Update the font size methods to use the store
 const increaseFontSize = () => {
-  fontSize.value = Math.min(fontSize.value + 2, 32);
+  settingsStore.increaseFontSize();
 };
 
 const decreaseFontSize = () => {
-  fontSize.value = Math.max(fontSize.value - 2, 12);
+  settingsStore.decreaseFontSize();
 };
 
 // Toggle paragraph numbering

@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue';
+import { ref, computed } from "vue";
 import { EpubParser } from "../utils/epubParser";
 
 export function useEpubParser(debug = false) {
@@ -15,11 +15,14 @@ export function useEpubParser(debug = false) {
   const tableOfContents = ref([]);
   const isLoading = ref(true);
   const errorMessage = ref(null);
-  
+
   // Initialize EPUB parser and load book
   const loadBook = async (bookUrl, bookTitle) => {
     try {
-      console.log("Starting to load book from:", bookUrl.substring(0, 50) + "...");
+      console.log(
+        "Starting to load book from:",
+        bookUrl.substring(0, 50) + "..."
+      );
       isLoading.value = true;
       errorMessage.value = null;
 
@@ -30,7 +33,7 @@ export function useEpubParser(debug = false) {
 
       // Create a new parser instance
       epubParser.value = new EpubParser();
-      
+
       // Try to load the book
       try {
         // Handle different URL types
@@ -56,13 +59,15 @@ export function useEpubParser(debug = false) {
       };
 
       totalChapters.value = epubParser.value.spine.length;
-      
+
       // Initialize TOC
       if (epubParser.value.toc && epubParser.value.toc.length > 0) {
         tableOfContents.value = getTableOfContents();
-        console.log(`Table of contents loaded: ${tableOfContents.value.length} items`);
+        console.log(
+          `Table of contents loaded: ${tableOfContents.value.length} items`
+        );
       }
-      
+
       isLoading.value = false;
       return true;
     } catch (error) {
@@ -72,12 +77,12 @@ export function useEpubParser(debug = false) {
       return false;
     }
   };
-  
+
   // Load specific chapter
   const loadChapter = async (index, showParagraphNumbers = false) => {
     try {
       isLoading.value = true;
-      
+
       if (DEBUG_MODE) {
         console.log(`📖 LOADING CHAPTER ${index + 1}`);
       }
@@ -86,7 +91,7 @@ export function useEpubParser(debug = false) {
       const chapter = await epubParser.value.goToChapter(index, {
         numberParagraphs: showParagraphNumbers,
       });
-      
+
       // Update chapter content
       currentChapterContent.value = chapter.content;
       currentChapterIndex.value = chapter.index;
@@ -100,27 +105,27 @@ export function useEpubParser(debug = false) {
       throw error;
     }
   };
-  
+
   // Process images in the EPUB content
   const processImages = async (contentEl) => {
     if (!contentEl) return;
-    
+
     // Get all images in the content
     const images = contentEl.querySelectorAll("img");
     if (images.length === 0) return;
-    
+
     // Process each image
     for (const img of images) {
       try {
         // Check if image has a valid source
         const src = img.getAttribute("src");
         if (!src) continue;
-        
+
         // Add loading attribute and styles
         img.setAttribute("loading", "lazy");
         img.style.maxWidth = "100%";
         img.style.height = "auto";
-        
+
         // Add missing alt text if needed
         if (!img.hasAttribute("alt")) {
           img.setAttribute("alt", "Book illustration");
@@ -130,53 +135,74 @@ export function useEpubParser(debug = false) {
       }
     }
   };
-  
+
   // Get flattened table of contents
   const getTableOfContents = () => {
     if (!epubParser.value || !epubParser.value.toc) {
       return [];
     }
-    
+
+    // Track processed chapter indexes to avoid duplicates
+    const processedIndexes = new Set();
+
     // Helper function to flatten nested TOC
     const flattenToc = (items, level = 0) => {
       let result = [];
-      
-      items.forEach(item => {
-        // Add current item with its level
-        result.push({
-          id: `toc-${result.length}`,
-          label: item.label,
-          href: item.href,
-          level: level,
-          index: getChapterIndexFromHref(item.href)
-        });
-        
-        // Add children if any
+
+      items.forEach((item) => {
+        // Get chapter index for deduplication
+        const chapterIndex = getChapterIndexFromHref(item.href);
+
+        // Only add items with valid indexes that haven't been processed yet
+        // This prevents duplicate entries from appearing in the TOC
+        if (chapterIndex >= 0 && !processedIndexes.has(chapterIndex)) {
+          // Mark this index as processed to avoid duplicates
+          processedIndexes.add(chapterIndex);
+
+          // Add current item with its level
+          result.push({
+            id: `toc-${result.length}`,
+            label: item.label,
+            href: item.href,
+            level: level,
+            index: chapterIndex,
+          });
+        }
+
+        // Add children if any (with deduplication)
         if (item.subitems && item.subitems.length > 0) {
           result = [...result, ...flattenToc(item.subitems, level + 1)];
         }
       });
-      
+
       return result;
     };
-    
-    return flattenToc(epubParser.value.toc);
+
+    // Generate flattened TOC and sort by chapter index for proper ordering
+    const tocItems = flattenToc(epubParser.value.toc);
+
+    // Sort by chapter index to ensure correct order
+    return tocItems.sort((a, b) => a.index - b.index);
   };
-  
+
   // Helper function to get chapter index from href
   const getChapterIndexFromHref = (href) => {
     if (!href || !epubParser.value) {
       return -1;
     }
-    
+
     // Find the spine item that matches this href
-    const index = epubParser.value.spine.findIndex(item => {
-      return item.href === href || item.href.includes(href) || href.includes(item.href);
+    const index = epubParser.value.spine.findIndex((item) => {
+      return (
+        item.href === href ||
+        item.href.includes(href) ||
+        href.includes(item.href)
+      );
     });
-    
+
     return index;
   };
-  
+
   // Navigation methods
   const nextChapter = () => {
     if (currentChapterIndex.value < totalChapters.value - 1) {
@@ -184,14 +210,14 @@ export function useEpubParser(debug = false) {
     }
     return null;
   };
-  
+
   const previousChapter = () => {
     if (currentChapterIndex.value > 0) {
       return loadChapter(currentChapterIndex.value - 1);
     }
     return null;
   };
-  
+
   return {
     epubParser,
     currentChapterContent,
@@ -207,6 +233,6 @@ export function useEpubParser(debug = false) {
     nextChapter,
     previousChapter,
     getTableOfContents,
-    getChapterIndexFromHref
+    getChapterIndexFromHref,
   };
 }

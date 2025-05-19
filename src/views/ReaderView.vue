@@ -161,9 +161,9 @@
             >
               Bookmarks
               <span
-                v-if="bookmarks.length > 0"
+                v-if="sortedBookmarks.length > 0"
                 class="ml-1 px-1.5 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full"
-                >{{ bookmarks.length }}</span
+                >{{ sortedBookmarks.length }}</span
               >
             </button>
           </div>
@@ -197,7 +197,7 @@
           <!-- Bookmarks tab -->
           <div v-if="activeTab === 'bookmarks'">
             <div
-              v-if="bookmarks.length === 0"
+              v-if="sortedBookmarks.length === 0"
               class="text-gray-500 dark:text-gray-400 italic text-center py-4"
             >
               <p>No bookmarks added yet.</p>
@@ -209,7 +209,7 @@
 
             <ul v-else class="space-y-2 mt-1">
               <li
-                v-for="bookmark in bookmarks"
+                v-for="bookmark in sortedBookmarks"
                 :key="bookmark.id"
                 class="bookmark-item bg-gray-50 dark:bg-gray-700 rounded-md overflow-hidden"
               >
@@ -364,6 +364,15 @@ const showBookInfo = ref(false);
 
 // Reading progress
 const readingProgress = ref(0);
+
+// Sort bookmarks with newest first
+const sortedBookmarks = computed(() => {
+  // Make a copy of the bookmarks array to avoid modifying the original
+  return [...bookmarks.value].sort((a, b) => {
+    // Sort by creation date (newest first)
+    return new Date(b.createdAt) - new Date(a.createdAt);
+  });
+});
 
 // For development, we'll directly use a static path to the EPUB file
 // In a production app, we would use a more sophisticated approach
