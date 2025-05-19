@@ -116,7 +116,11 @@ const readerContent = ref(null);
 // State variables
 // Replace the local fontSize ref with a computed property
 const fontSize = computed(() => settingsStore.fontSize);
-const showParagraphNumbers = ref(false);
+
+// Use computed property for showParagraphNumbers
+// This ensures it stays in sync with the store value and persists across page refreshes
+const showParagraphNumbers = computed(() => settingsStore.paragraphNumbering);
+
 const shouldRestorePosition = ref(true);
 const positionToRestore = ref(0);
 const scrollPosition = ref(0);
@@ -144,18 +148,24 @@ const decreaseFontSize = () => {
 
 // Toggle paragraph numbering
 const toggleParagraphNumbering = (value = undefined) => {
-  // If a specific value is provided, use it; otherwise toggle
-  if (value !== undefined) {
-    showParagraphNumbers.value = value;
-  } else {
-    showParagraphNumbers.value = !showParagraphNumbers.value;
+  // Get the current value from the store
+  const currentValue = settingsStore.paragraphNumbering;
+
+  // Determine the new value
+  const newValue = value !== undefined ? value : !currentValue;
+
+  console.log("Toggling paragraph numbering:", {
+    receivedValue: value,
+    currentValue,
+    newValue,
+  });
+
+  // Only update if different to prevent unnecessary updates
+  if (newValue !== currentValue) {
+    settingsStore.paragraphNumbering = newValue;
   }
 
-  console.log(
-    `Paragraph numbering ${showParagraphNumbers.value ? "enabled" : "disabled"}`
-  );
-
-  // Reload the current chapter with the new paragraph numbering setting
+  // Always reload to ensure the UI reflects the current state
   loadCurrentChapterWithParagraphNumbers();
 };
 
@@ -163,10 +173,15 @@ const toggleParagraphNumbering = (value = undefined) => {
 const loadCurrentChapterWithParagraphNumbers = async () => {
   try {
     console.log(
-      `Reloading chapter with paragraph numbering: ${showParagraphNumbers.value}`
+      "Current store value in loadCurrentChapterWithParagraphNumbers:",
+      settingsStore.paragraphNumbering
     );
+
     if (typeof currentChapterIndex.value === "number") {
-      await loadChapter(currentChapterIndex.value, showParagraphNumbers.value);
+      await loadChapter(
+        currentChapterIndex.value,
+        settingsStore.paragraphNumbering
+      );
     }
   } catch (error) {
     console.error("Error reloading chapter with paragraph numbers:", error);
@@ -270,8 +285,12 @@ const initializeBook = async () => {
     // Remember the position to restore
     const positionToRestoreAfterLoad = positionToRestore.value;
 
-    // Load current chapter
-    await loadChapter(currentChapterIndex.value, showParagraphNumbers.value);
+    // Load current chapter with paragraph numbering from settings store
+    // This ensures the user's preference for paragraph numbering is applied consistently
+    await loadChapter(
+      currentChapterIndex.value,
+      settingsStore.paragraphNumbering
+    );
 
     // Make sure position value wasn't lost during chapter load
     positionToRestore.value = positionToRestoreAfterLoad;

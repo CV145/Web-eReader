@@ -206,14 +206,24 @@ export function useEpubParser(debug = false) {
   // Navigation methods
   const nextChapter = () => {
     if (currentChapterIndex.value < totalChapters.value - 1) {
-      return loadChapter(currentChapterIndex.value + 1);
+      // Get the current paragraph numbering state from the last chapter load
+      const currentOptions = epubParser.value?.currentChapterOptions || {};
+      return loadChapter(
+        currentChapterIndex.value + 1,
+        currentOptions.numberParagraphs
+      );
     }
     return null;
   };
 
   const previousChapter = () => {
     if (currentChapterIndex.value > 0) {
-      return loadChapter(currentChapterIndex.value - 1);
+      // Get the current paragraph numbering state from the last chapter load
+      const currentOptions = epubParser.value?.currentChapterOptions || {};
+      return loadChapter(
+        currentChapterIndex.value - 1,
+        currentOptions.numberParagraphs
+      );
     }
     return null;
   };

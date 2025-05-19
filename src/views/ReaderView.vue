@@ -448,13 +448,13 @@ const prevPage = () => {
   }
 };
 
+// Toggle paragraph numbering
 const toggleParagraphNumbering = () => {
   // Toggle the setting in the store
   settingsStore.paragraphNumbering = !settingsStore.paragraphNumbering;
 
-  // Save directly to localStorage for persistence
-  localStorage.setItem(
-    "paragraphNumbering",
+  console.log(
+    "Paragraph numbering setting changed to:",
     JSON.stringify(settingsStore.paragraphNumbering)
   );
 
@@ -464,6 +464,7 @@ const toggleParagraphNumbering = () => {
       "Toggling paragraph numbering to:",
       settingsStore.paragraphNumbering
     );
+    // Pass the new value explicitly to avoid double-toggling
     epubReader.value.toggleParagraphNumbering(settingsStore.paragraphNumbering);
   } else {
     console.warn("EpubReader component not found");

@@ -116,8 +116,8 @@ const decreaseFontSize = () => {
 };
 
 // Toggle paragraph numbering
-const toggleParagraphNumbering = () => {
-  epubReader.value?.toggleParagraphNumbering();
+const toggleParagraphNumbering = (value) => {
+  epubReader.value?.toggleParagraphNumbering(value);
 };
 
 // Theme toggle
