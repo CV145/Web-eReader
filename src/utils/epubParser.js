@@ -20,6 +20,7 @@ export class EpubParser {
     this.toc = [];
     this.currentSpineIndex = 0;
     this.baseUrl = "";
+    this.coverPath = null; // Add property to store cover path
   }
 
   /**
@@ -615,6 +616,129 @@ export class EpubParser {
     // We're no longer using blob URLs directly, so no need to revoke them
     this.zip = null;
     console.log("EpubParser: Resources cleaned up");
+  }
+
+  /**
+   * Extract cover image from EPUB file
+   * @returns {Promise<string>} Base64 encoded cover image or null if not found
+   */
+  async extractCoverImage() {
+    try {
+      // First try: Look for a cover image specified in the manifest
+      if (this.manifest) {
+        // Look for item with ID containing 'cover' or properties containing 'cover-image'
+        const coverItem = Object.values(this.manifest).find(
+          (item) =>
+            (item.id && item.id.toLowerCase().includes("cover")) ||
+            (item.properties && item.properties.includes("cover-image"))
+        );
+
+        if (coverItem && coverItem.href) {
+          this.coverPath = coverItem.href;
+          console.log("Found cover image in manifest:", this.coverPath);
+          return await this.getResourceAsBase64(this.coverPath);
+        }
+      }
+
+      // Second try: Look for an item in the spine with 'cover' in the ID or href
+      for (const item of this.spine) {
+        if (
+          (item.id && item.id.toLowerCase().includes("cover")) ||
+          (item.href && item.href.toLowerCase().includes("cover"))
+        ) {
+          this.coverPath = item.href;
+          console.log("Found cover in spine:", this.coverPath);
+          return await this.getResourceAsBase64(this.coverPath);
+        }
+      }
+
+      // Third try: Just use the first image file we can find
+      if (this.manifest) {
+        const firstImage = Object.values(this.manifest).find(
+          (item) => item.mediaType && item.mediaType.startsWith("image/")
+        );
+
+        if (firstImage && firstImage.href) {
+          this.coverPath = firstImage.href;
+          console.log("Using first image as cover:", this.coverPath);
+          return await this.getResourceAsBase64(this.coverPath);
+        }
+      }
+
+      console.log("No cover image found in EPUB");
+      return null;
+    } catch (error) {
+      console.error("Error extracting cover image:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Get a resource as a base64 encoded data URL
+   * @param {string} path - Path to the resource
+   * @returns {Promise<string>} Base64 encoded data URL
+   */
+  async getResourceAsBase64(path) {
+    try {
+      // Get the absolute path to the resource
+      const absolutePath = this.getAbsolutePath(path);
+
+      // Get the file from the zip
+      const file = await this.zip.file(absolutePath).async("blob");
+      if (!file) {
+        throw new Error(`Resource not found: ${absolutePath}`);
+      }
+
+      // Get the media type
+      const mediaType = this.getMediaType(absolutePath) || "image/jpeg";
+
+      // Convert to base64
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    } catch (error) {
+      console.error("Error getting resource as base64:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Get the media type for a file based on its extension
+   * @param {string} path - Path to the file
+   * @returns {string} Media type or null if unknown
+   */
+  getMediaType(path) {
+    const extension = path.split(".").pop().toLowerCase();
+    const mediaTypes = {
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      gif: "image/gif",
+      svg: "image/svg+xml",
+      webp: "image/webp",
+    };
+
+    return mediaTypes[extension] || null;
+  }
+
+  /**
+   * Get the absolute path for a resource
+   * @param {string} path - Path to the resource
+   * @returns {string} Absolute path
+   */
+  getAbsolutePath(path) {
+    if (path.startsWith("/")) {
+      return path;
+    }
+
+    if (this.rootfileDir) {
+      return this.rootfileDir + path;
+    }
+
+    return path;
   }
 }
 

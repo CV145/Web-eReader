@@ -7,18 +7,6 @@
         <h1 class="text-3xl font-bold">Your Library</h1>
 
         <div class="flex items-center space-x-4">
-          <!-- Storage Status (if available) -->
-          <div v-if="storageStatus" class="text-sm text-gray-500">
-            <span v-if="storageStatus.available" class="flex items-center">
-              <span class="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
-              Storage: ~{{ storageStatus.availableMB }}MB available
-            </span>
-            <span v-else class="flex items-center">
-              <span class="w-2 h-2 bg-red-500 rounded-full mr-1"></span>
-              Storage unavailable
-            </span>
-          </div>
-
           <!-- Add Book Button -->
           <button
             @click="openFileUpload"
@@ -87,8 +75,9 @@
         <div
           v-for="book in books"
           :key="book.id"
-          class="book-item bg-gray-50 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+          class="book-item bg-gray-50 p-4 rounded-lg shadow-sm hover:shadow-md transition-shadow flex flex-col h-[400px]"
         >
+          <!-- Cover Image Section - Fixed Height -->
           <div class="aspect-w-2 aspect-h-3 bg-gray-200 mb-3 rounded relative">
             <!-- Status Indicator for Unavailable Books -->
             <div
@@ -111,8 +100,43 @@
               </div>
             </div>
 
-            <div class="flex items-center justify-center h-full text-gray-400">
-              Book Cover
+            <!-- Book Cover - Show actual cover or placeholder -->
+            <div class="h-full w-full relative">
+              <!-- Actual book cover image if available -->
+              <img
+                v-if="book.coverUrl"
+                :src="book.coverUrl"
+                alt="Book Cover"
+                class="w-full h-full object-cover rounded absolute inset-0"
+              />
+
+              <!-- Placeholder if no cover image is available -->
+              <div
+                v-else
+                class="flex flex-col items-center justify-center h-full bg-gray-100 rounded"
+              >
+                <div
+                  class="w-16 h-16 mb-2 flex items-center justify-center bg-gray-200 rounded-full"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-8 w-8 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                    />
+                  </svg>
+                </div>
+                <p class="text-xs text-gray-400 text-center line-clamp-2">
+                  {{ book.title }}
+                </p>
+              </div>
             </div>
 
             <!-- Favorite badge -->
@@ -126,73 +150,86 @@
             </button>
           </div>
 
-          <h3 class="font-medium">{{ book.title }}</h3>
-          <p class="text-sm text-gray-600">{{ book.author }}</p>
-
-          <!-- Progress bar if started reading -->
-          <div v-if="book.progress > 0" class="mt-2">
-            <div class="w-full bg-gray-200 rounded-full h-1.5">
-              <div
-                class="bg-indigo-600 h-1.5 rounded-full"
-                :style="{ width: `${Math.round(book.progress * 100)}%` }"
-              ></div>
-            </div>
-            <p class="text-xs text-gray-500 mt-1">
-              {{ Math.round(book.progress * 100) }}% read
-            </p>
+          <!-- Book Info Section - Fixed Height -->
+          <div class="min-h-[60px]">
+            <h3 class="font-medium line-clamp-1">{{ book.title }}</h3>
+            <p class="text-sm text-gray-600">{{ book.author }}</p>
           </div>
 
-          <div class="mt-3 flex space-x-2">
-            <!-- Read button - disabled for unavailable books -->
-            <template
-              v-if="book.status === 'unavailable' || book.status === 'corrupt'"
-            >
-              <button
-                class="text-sm bg-gray-400 text-white px-3 py-1 rounded cursor-not-allowed"
-                title="Book data is no longer available"
-                @click="notifyUnavailableBook(book)"
-              >
-                Read
-              </button>
-            </template>
-            <template v-else>
-              <router-link
-                :to="'/reader'"
-                class="text-sm bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700 transition-colors"
-                @click="openBook(book.id)"
-              >
-                Read
-              </router-link>
-            </template>
+          <!-- Progress Section - Always Takes Space -->
+          <div class="h-[40px] mt-2">
+            <div v-if="book.progress > 0">
+              <div class="w-full bg-gray-200 rounded-full h-1.5">
+                <div
+                  class="bg-indigo-600 h-1.5 rounded-full"
+                  :style="{ width: `${Math.round(book.progress * 100)}%` }"
+                ></div>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">
+                {{ Math.round(book.progress * 100) }}% read
+              </p>
+            </div>
+          </div>
 
-            <div class="flex space-x-2">
-              <button
-                class="text-sm bg-gray-200 text-gray-800 px-3 py-1 rounded hover:bg-gray-300 transition-colors"
-                @click="showBookInfo(book.id)"
-              >
-                Info
-              </button>
+          <!-- Buttons Section - Consistent Layout -->
+          <div class="mt-auto pt-3">
+            <div class="flex flex-col space-y-2">
+              <!-- Top row - Read button -->
+              <div class="w-full">
+                <template
+                  v-if="
+                    book.status === 'unavailable' || book.status === 'corrupt'
+                  "
+                >
+                  <button
+                    class="w-full text-sm bg-gray-400 text-white px-3 py-1 rounded cursor-not-allowed"
+                    title="Book data is no longer available"
+                    @click="notifyUnavailableBook(book)"
+                  >
+                    Read
+                  </button>
+                </template>
+                <template v-else>
+                  <router-link
+                    :to="'/reader'"
+                    class="block w-full text-center text-sm bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700 transition-colors"
+                    @click="openBook(book.id)"
+                  >
+                    Read
+                  </router-link>
+                </template>
+              </div>
 
-              <!-- Delete Button -->
-              <button
-                class="text-sm bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition-colors"
-                @click="confirmDeleteBook(book)"
-                title="Delete this book from your library"
-              >
-                Delete
-              </button>
+              <!-- Bottom row - Other buttons -->
+              <div class="grid grid-cols-3 gap-2">
+                <button
+                  class="text-sm bg-gray-200 text-gray-800 px-3 py-1 rounded hover:bg-gray-300 transition-colors"
+                  @click="showBookInfo(book.id)"
+                >
+                  Info
+                </button>
 
-              <!-- Re-upload button for unavailable books -->
-              <button
-                v-if="
-                  book.status === 'unavailable' || book.status === 'corrupt'
-                "
-                class="text-sm bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600 transition-colors"
-                @click="openFileUpload()"
-                title="Upload a new copy of this book"
-              >
-                Re-upload
-              </button>
+                <button
+                  class="text-sm bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 transition-colors"
+                  @click="confirmDeleteBook(book)"
+                  title="Delete this book from your library"
+                >
+                  Delete
+                </button>
+
+                <!-- Re-upload button - hidden when not needed but space reserved -->
+                <button
+                  v-if="
+                    book.status === 'unavailable' || book.status === 'corrupt'
+                  "
+                  class="text-sm bg-orange-500 text-white px-3 py-1 rounded hover:bg-orange-600 transition-colors"
+                  @click="openFileUpload()"
+                  title="Upload a new copy of this book"
+                >
+                  Re-upload
+                </button>
+                <div v-else></div>
+              </div>
             </div>
           </div>
         </div>
@@ -233,6 +270,7 @@ import {
   deleteBookData,
 } from "../utils/indexedDbStorage";
 import { forcePersist, verifyBookRemoved } from "../utils/storeHelper";
+import { EpubParser } from "../utils/epubParser";
 
 const router = useRouter();
 const libraryStore = useLibraryStore();
@@ -526,6 +564,34 @@ const handleFileUpload = async (event) => {
     });
     const fileUrl = URL.createObjectURL(fileBlob);
 
+    // Extract cover image and metadata from the EPUB file
+    let coverImageUrl = null;
+    let author = "Unknown Author";
+
+    try {
+      // Create a temporary EPUB parser to extract the cover and metadata
+      const parser = new EpubParser();
+      await parser.loadFile(await file.arrayBuffer());
+
+      // Get metadata if available
+      if (parser.metadata) {
+        if (parser.metadata.title) title = parser.metadata.title;
+        if (parser.metadata.creator) author = parser.metadata.creator;
+      }
+
+      // Extract cover image
+      coverImageUrl = await parser.extractCoverImage();
+
+      // Clean up the parser
+      parser.cleanup();
+
+      console.log("Extracted metadata:", { title, author });
+      console.log("Cover image extracted:", coverImageUrl ? "Yes" : "No");
+    } catch (metadataError) {
+      console.error("Error extracting metadata or cover:", metadataError);
+      // Continue without metadata or cover if extraction fails
+    }
+
     // Save the file data for persistence across sessions
     try {
       // Check file size before attempting to store
@@ -598,13 +664,14 @@ const handleFileUpload = async (event) => {
     libraryStore.addBook({
       id,
       title,
-      author: "Unknown Author", // This could be extracted from the EPUB metadata in a more advanced implementation
+      author, // Now using the extracted author name
       format: "EPUB",
       progress: 0,
       favorite: false,
       addedDate: new Date().toISOString(),
       filePath: fileName,
       url: fileUrl, // Store the blob URL for immediate use
+      coverUrl: coverImageUrl, // Store the extracted cover image URL
     });
 
     // Show success message

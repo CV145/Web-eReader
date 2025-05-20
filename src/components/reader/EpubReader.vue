@@ -99,7 +99,6 @@ const {
   addBookmark,
   getBookmarks,
   removeBookmark,
-  navigateToBookmark,
 } = useBookmarks(props.bookId);
 
 const {
@@ -391,6 +390,96 @@ const createBookmark = () => {
     return bookmark;
   }
   return null;
+};
+
+// Navigate to a bookmark
+const navigateToBookmark = async (bookmark) => {
+  try {
+    console.log("Navigating to bookmark:", bookmark);
+
+    // First, navigate to the correct chapter if needed
+    if (bookmark.chapterIndex !== currentChapterIndex.value) {
+      // Load the bookmark's chapter first
+      await loadChapter(bookmark.chapterIndex, showParagraphNumbers.value);
+      emit("chapter-changed", bookmark.chapterIndex);
+    }
+
+    // Wait for the next tick to ensure the chapter content is rendered
+    await nextTick();
+
+    // Find the paragraph by index
+    if (
+      typeof bookmark.paragraphIndex === "number" &&
+      bookmark.paragraphIndex >= 0
+    ) {
+      const paragraphs = readerContent.value?.$el.querySelectorAll("p");
+
+      if (paragraphs && paragraphs.length > 0) {
+        // Get the target paragraph
+        const targetIndex = Math.min(
+          bookmark.paragraphIndex,
+          paragraphs.length - 1
+        );
+        const targetParagraph = paragraphs[targetIndex];
+
+        console.log("Navigating to paragraph:", targetParagraph);
+
+        if (targetParagraph) {
+          // Get the main scrollable element directly from the DOM
+          // The ReaderContent component has a main element with class "reader-content"
+          const scrollContainer = readerContent.value?.$el;
+
+          // Log the scroll container element for debugging
+          console.log("Scroll container:", scrollContainer);
+
+          if (scrollContainer) {
+            // Calculate the position to scroll to
+            // We need to get the target paragraph's position relative to its parent
+            const scrollPosition = targetParagraph.offsetTop;
+
+            // Set the scrollTop property of the container
+            // This directly controls the vertical scroll position
+            scrollContainer.scrollTop = scrollPosition;
+
+            // Log for debugging
+            console.log("Scrolling container to position:", scrollPosition);
+          } else {
+            // Fallback to default behavior if container not found
+            console.warn(
+              "Scroll container not found, falling back to scrollIntoView"
+            );
+            targetParagraph.scrollIntoView({
+              behavior: "smooth", // Smooth scrolling animation
+              block: "start", // Align to the top of the viewport
+            });
+          }
+
+          // Highlight the paragraph briefly
+          targetParagraph.style.backgroundColor = "#ffff9980"; // Light yellow
+          setTimeout(() => {
+            targetParagraph.style.backgroundColor = "";
+          }, 2000);
+
+          // Update reading position
+          const scrollPosition = targetParagraph.offsetTop;
+          saveReadingPosition(currentChapterIndex.value, scrollPosition);
+          return true;
+        }
+      }
+    }
+
+    // Fall back to the saved position if paragraph not found
+    if (typeof bookmark.position === "number" && bookmark.position > 0) {
+      applyScrollPosition(bookmark.position);
+      saveReadingPosition(currentChapterIndex.value, bookmark.position);
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error("Error navigating to bookmark:", error);
+    return false;
+  }
 };
 
 // Watch for changes to load the book

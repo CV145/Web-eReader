@@ -141,15 +141,6 @@ export function useBookmarks(bookId) {
     return false;
   };
 
-  // Navigate to a specific bookmark
-  const navigateToBookmark = (bookmark) => {
-    // This function is just a stub - the actual navigation logic
-    // will be implemented in the reader component that has access
-    // to the chapter navigation functionality
-    console.log(`Navigating to bookmark: ${bookmark.id}`);
-    return bookmark;
-  };
-
   return {
     bookmarks,
     loadBookmarks,
@@ -157,6 +148,5 @@ export function useBookmarks(bookId) {
     addBookmark,
     getBookmarks,
     removeBookmark,
-    navigateToBookmark,
   };
 }
